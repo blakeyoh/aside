@@ -1,6 +1,9 @@
-# Hushed Hippo — CLAUDE.md
+# Aside — CLAUDE.md
 
-Local macOS dictation app. Push-to-talk and toggle hotkeys capture audio, transcribe with Whisper, and type text at the cursor via Quartz keyboard events. No clipboard, no cloud.
+Open-source privacy-first voice dictation for macOS. Push-to-talk and toggle hotkeys capture audio, transcribe locally with faster-whisper, and type text at the cursor via Quartz keyboard events. No clipboard, no cloud, no telemetry.
+
+**Repo:** https://github.com/blakeyoh/aside
+**License:** Apache 2.0
 
 ## Stack
 
@@ -13,133 +16,165 @@ Local macOS dictation app. Push-to-talk and toggle hotkeys capture audio, transc
 | UI | `customtkinter` + `pyobjc` (AppKit, menu bar) |
 | Header icon | `pillow` (CTkImage requires PIL) |
 | Python | Homebrew Python 3.13 (system Python 3.9 is NOT supported) |
+| Packaging | `pyproject.toml` + `setuptools.build_meta` |
 
 ## Setup & Launch
 
 ```bash
-./setup.sh          # one-time: creates .venv, installs deps, downloads base model
-./run.sh            # launch via Terminal
-# OR: double-click HushedHippo.app / click Dock icon
+./setup.sh                          # one-time: creates .venv, installs deps, downloads base model
+.venv/bin/python3 -m aside          # launch via Terminal
+# OR: double-click Aside.app (must stay in repo directory)
 ```
 
-Logs always go to `~/Library/Logs/HushedHippo/hushed-hippo.log`. Check there first when debugging.
+Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migrated from HushedHippo and WhisperDictation paths on first launch.
 
-## Key Files
+## Package Structure
 
-| File | Role |
-|---|---|
-| `engine.py` | DictationEngine: event tap, recording, transcription, text injection |
-| `app.py` | App (ctk.CTk): settings UI, status display, engine lifecycle |
-| `setup.sh` | Venv creation, pip install, model download, dep verification |
-| `run.sh` | Terminal launcher (activates venv, runs app.py) |
-| `test_engine.py` | Smoke tests — run with `.venv/bin/python3 test_engine.py` |
-| `requirements.txt` | Pinned minimum versions |
-| `HushedHippo.app/` | .app bundle — launcher at `Contents/MacOS/HushedHippo` |
+```
+src/aside/
+├── __init__.py              # __version__ = "1.0.0"
+├── __main__.py              # entry point
+├── config.py                # load/save/migrate config, DEFAULT_CONFIG
+├── engine/
+│   ├── audio.py             # AudioCapture: sounddevice + chunk management
+│   ├── hotkeys.py           # HotkeyManager: GIL-safe event tap + capture mode
+│   ├── injector.py          # inject_text(), inject_keystroke() via Quartz
+│   └── transcriber.py       # Transcriber: orchestrates stages 3-8 of pipeline
+├── commands/
+│   ├── parser.py            # parse_commands(): 12 voice commands with boundary detection
+│   ├── actions.py           # execute_commands(): map Command enum to keystrokes
+│   └── numbers.py           # NumberMode: word-to-digit with _join_tokens
+├── dictionary/
+│   ├── hotwords.py          # parse_dictionary(): 50-term cap, dedup, DictionaryData
+│   ├── replacements.py      # apply_replacements(): regex with lookaround boundaries
+│   └── context.py           # ContextBuffer: rolling 3-entry FIFO for initial_prompt
+├── punctuation/
+│   └── formatter.py         # format_text(): capitalization, smart quotes, trailing space
+└── ui/
+    ├── app.py               # App(ctk.CTk): main shell, wiring, state machines
+    ├── menubar.py           # MenuBar: NSStatusBar + NSMenu + hotkey_display()
+    ├── settings.py          # build_settings(): all settings panel widgets
+    └── theme.py             # colors, fonts, MODELS, LANGUAGES, STATUS_MAP
+```
 
-**Config lives at** `~/Library/Application Support/HushedHippo/config.json`. Auto-migrated from `WhisperDictation/` on first launch.
+## 8-Stage Transcription Pipeline
+
+```
+1. Hotkey Detection     → engine/hotkeys.py       [Quartz event tap]
+2. Audio Capture        → engine/audio.py          [sounddevice]
+3. Dictionary Pre-Proc  → dictionary/hotwords.py   [hotwords + initial_prompt]
+     + context.py
+4. Whisper Transcription → engine/transcriber.py   [faster-whisper]
+5. Voice Command Detect → commands/parser.py       [boundary detection]
+     + actions.py + numbers.py
+6. Post-Processing      → dictionary/replacements  [regex replace]
+     + punctuation/formatter.py
+7. Text Injection       → engine/injector.py       [Quartz keystrokes]
+8. Context Update       → dictionary/context.py    [FIFO append]
+```
 
 ## Thread Model
 
 ```
 Main thread (Tk):
-  after_idle → _start_engine → DictationEngine.__init__
-  after(10ms) → _poll_engine → engine.poll() → _process_event()
-  after(0) → _update() [status updates, UI changes]
+  after_idle → engine startup (model load on background thread)
+  after(10ms) → poll HotkeyManager (drain event queue)
+  Settings UI, state machine, Apply handler
 
 Background thread "event-tap":
   CFRunLoopRun() → CGEventTap callback → queue.put_nowait(raw ints)
   NEVER touches Python objects beyond the queue put
+  Reads hotkey attrs without lock (GIL-atomic individual reads)
 
 Background thread "model-load" / "transcribe":
-  _load_model() / _transcribe() → self._lock for model access
-  calls self._on_status() → which calls self.after(0, _update)
+  Load Whisper model, run transcription
+  Access model under threading.Lock
+  stream.stop() runs HERE (never main thread — blocks)
 ```
 
-## UI Architecture
+## Voice Commands (12 total)
 
-```
-App (ctk.CTk)  ← starts withdrawn (quiet launch)
-  ├── Header section  (title, status dot, status label, Grant Access btn)
-  ├── Divider (tk.Frame, 1px)
-  ├── Preview section  (last transcription)
-  ├── Divider
-  ├── Instructions section  (numbered steps, optional toggle step)
-  ├── Divider
-  └── Settings section  (model dropdown, hotkey rows, Apply Model btn)
+| Trigger | Boundary | Action |
+|---------|----------|--------|
+| period / full stop | Word | Inject `.` |
+| comma | Word | Inject `,` |
+| question mark | Word | Inject `?` |
+| exclamation point/mark | Word | Inject `!` |
+| new line / newline | Word | Inject `\n` |
+| new paragraph | Word | Inject `\n\n` |
+| delete that | Sentence | Backspace last injection |
+| undo | Sentence | Cmd+Z |
+| select all | Sentence | Cmd+A |
+| copy that / copy all | Sentence | Cmd+C |
+| numbers mode | Sentence | Toggle digit conversion on |
+| words mode | Sentence | Toggle digit conversion off |
 
-Menu bar (NSStatusBar):
-  Icon: hushed-hippo-menu-bar-icon.png (RGBA, setTemplate_=True)
-  Recording: amber circle composited over hippo (NSBezierPath + NSColor)
-  Menu: About | --- | Settings… | --- | Quit Hushed Hippo
-```
+**Boundary rules:** Dictation commands (punctuation, newlines) trigger at any word boundary. Action commands (delete, undo, select, copy, mode toggles) require sentence boundary — prevents "I'll delete that section" from triggering.
 
-## Critical Gotchas
+## Custom Dictionary (3 layers)
 
-### Quiet launch
-The app starts withdrawn (`self.withdraw()` immediately after `super().__init__()`).
-The window only appears when the user clicks "Settings…" in the menu bar or the Dock icon.
-`WM_DELETE_WINDOW` → `self.withdraw()` (not quit). Engine keeps running in background.
+1. **Hotwords** → `transcribe(hotwords=...)` biases Whisper decoder
+2. **Context priming** → hotword terms + last 3 transcriptions fed as `initial_prompt`
+3. **Replacements** → `wrong → right` lines become post-processing regex rules
 
-### customtkinter init order
-`ctk.set_appearance_mode()` and `ctk.set_default_color_theme()` MUST be called BEFORE
-`super().__init__()`. Calling them after is a silent failure.
-
-### Widget API differences from tkinter
-- `.config(fg=...)` does NOT work on ctk widgets — use `.configure(text_color=...)`
-- `.config(bg=...)` → `.configure(fg_color=...)`
-- CTkFrame padx/pady go to `.pack()`, not the constructor
-- CTkButton has no `relief`, `padx`, `pady` — use `corner_radius`, `width`, `height`
-
-### Quartz callback — keep it minimal
-The CGEventTap callback runs on the background CFRunLoop thread. **Never acquire a Python `threading.Lock()` inside it.** The GIL contention will cause `kCGEventTapDisabledByTimeout` cycles. The callback must only: read event fields, `queue.put_nowait(raw ints)`, check plain attribute reads, return.
-
-See instinct: `quartz-eventtap-gil-isolation`
-
-### `kCGEventTapOptionDefault` is not exported by pyobjc
-Use the integer `0` directly. pyobjc exports `kCGEventTapOptionListenOnly = 1` but not the default value 0.
-
-```python
-# WRONG:
-kCGEventTapOptionDefault,   # NameError at runtime
-
-# CORRECT:
-0,   # kCGEventTapOptionDefault — pyobjc doesn't export this constant
-```
-
-### `.app` bundle must stay in the project directory
-`HushedHippo.app/Contents/MacOS/HushedHippo` resolves `.venv` by walking `../../..` from the bundle. Dragging the `.app` to `/Applications` breaks it. Dock it from `~/claude-code/whisper-dictation/`.
-
-### `_toggle_recording` must be reset on error paths
-If `sd.PortAudioError` fires in `_start_recording`, reset BOTH `self._recording = False` AND `self._toggle_recording = False`. Otherwise the toggle state gets stuck and the next press skips directly to stop.
-
-### `sounddevice.InputStream.stop()` blocks the calling thread
-`stop()` waits for the PortAudio audio callback to drain before returning. **Never call it on the main thread** (Tk/CTk event loop). In `_stop_and_transcribe()` the stream reference is passed to the background `_transcribe()` thread, which calls `stop()/close()` there.
-
-### `NSImage.lockFocus()` is unreliable in a hybrid Tk/AppKit app
-`lockFocus()` requires an NSGraphicsContext that may not exist when `after_idle()` fires (Tk hasn't set one up for AppKit). Creating a new NSImage with `initWithSize_` + `lockFocus` + `drawInRect_` produces a blank/transparent image. **Workaround**: hand the raw PNG NSImage directly to `NSStatusBarButton.setImage_()` — the button scales template images automatically.
+File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined). Uses `(?<!\w)` / `(?!\w)` lookarounds (NOT `\b`) for correct boundary matching on patterns ending with non-word chars like "a.w.s."
 
 ## Testing
 
 ```bash
-.venv/bin/python3 test_engine.py    # 8 unit tests: parse_hotkey + faster-whisper import
+.venv/bin/python3 -m pytest tests/ -v    # 77 unit tests
 ```
 
-Manual test checklist:
-1. `./run.sh` → no window appears; menu bar hippo icon visible
-2. Click "Settings…" → window appears centered
-3. Close window (X) → window hides, app keeps running (check menu bar)
-4. Hold hotkey → speak → release → text typed at cursor; menu bar icon shows amber circle while recording
-5. Set toggle hotkey → press once → "Recording…" → press again → text typed
-6. Apply Model → "Loading model…" → "Ready"
-7. Change hotkey → new combo works
-8. Launch second instance → single-instance alert
-9. Revoke Accessibility → relaunch → "Grant Access" button appears, opens System Settings
-10. Switch macOS light/dark mode → menu bar hippo icon inverts correctly
+Manual smoke test plan: `docs/smoke-test-plan.md` (Boeing FAI-style, 6 phases, go/no-go gates)
+
+## Critical Gotchas
+
+### Quartz callback — keep it minimal
+The CGEventTap callback runs on the background CFRunLoop thread. **Never acquire a Python `threading.Lock()` inside it.** GIL contention causes `kCGEventTapDisabledByTimeout` cycles. The callback must only: read event fields, `queue.put_nowait(raw ints)`, check plain attribute reads, return.
+
+### `kCGEventTapOptionDefault` is not exported by pyobjc
+Use the integer `0` directly.
+
+### `sounddevice.InputStream.stop()` blocks the calling thread
+**Never call it on the main thread.** The Transcriber runs stop/close on its background thread.
+
+### `.app` bundle must stay in the project directory
+`Aside.app/Contents/MacOS/Aside` resolves `.venv` by walking `../../..` from the bundle. Moving it to `/Applications` breaks the path.
+
+### customtkinter init order
+`ctk.set_appearance_mode()` and `ctk.set_default_color_theme()` MUST be called BEFORE `super().__init__()`. Silent failure otherwise.
+
+### Widget API differences from tkinter
+- `.config(fg=...)` → `.configure(text_color=...)`
+- `.config(bg=...)` → `.configure(fg_color=...)`
+- CTkFrame padx/pady go to `.pack()`, not the constructor
+- CTkButton has no `relief`, `padx`, `pady` — use `corner_radius`, `width`, `height`
+
+### `NSImage.lockFocus()` is unreliable in hybrid Tk/AppKit
+Hand the raw PNG NSImage directly to `NSStatusBarButton.setImage_()` — the button scales template images automatically.
+
+### Quiet launch
+App starts withdrawn. Window only appears on "Settings..." click. `WM_DELETE_WINDOW` → `withdraw()` (not quit).
+
+### Single-instance lock
+Lock file at `~/.aside/aside.lock` using `fcntl.flock()`. Second launch shows alert and exits.
+
+## Design Decisions Worth Preserving
+
+These were discovered during implementation and aren't obvious from the code alone:
+
+- **Task 4 (replacements):** `\b` word boundaries fail for patterns ending with non-word chars like "a.w.s." — switched to `(?<!\w)` / `(?!\w)` negative lookarounds
+- **Task 6 (parser):** Commands split into dictation (trigger at word boundary) vs action (require sentence boundary) to prevent mid-sentence false triggers
+- **Task 7 (numbers):** `_join_tokens` helper concatenates consecutive digit tokens without spaces ("one two three" → "123" not "1 2 3")
+- **Task 9 (formatter tests):** Trailing space tests must use `capitalization="off"` for proper isolation
+- **Task 2 (config tests):** Base fixture patches `_MIGRATION_PATHS = []` because real HushedHippo config exists on dev machine
 
 ## Deferred Work
 
-See `TODO.md`. Key open items:
-- PyInstaller standalone `.app` (true zero-setup sharing)
+- Aside-branded menu bar icon (currently hippo placeholder)
+- Homebrew formula (`Formula/aside.rb`)
+- PyInstaller standalone `.app`
 - Code signing / Gatekeeper notarization
-- Hotkey capture cancel button
-- Transcribing state indicator in menu bar icon (distinct from recording)
+- SwiftUI native frontend (v2-v3)
+- Tier 2 voice commands (cap, all caps, tab, sleep/wake)
+- Interactive tutorial webpage ("training range" for voice commands)
