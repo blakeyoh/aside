@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+*.so
+
+# Virtual environment
+.venv/
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Aside runtime
+.aside/
+
+# Old Hushed Hippo files (reference only)
+app.py
+engine.py
+test_engine.py
+run.sh
+HushedHippo.app/
+hushed-hippo-menu-bar-icon.png
+requirements.txt
+setup.sh.bak
+
+# Lock files
+.observer.lock
+.whisper-dictation.lock
+
+# Misc
+.zshrc
+anthropic-deep-learning-api-key.txt

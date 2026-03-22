@@ -1,0 +1,29 @@
+#!/bin/bash
+# Entry point for Aside.app
+#
+# Required layout (bundle must stay in the project directory):
+#   whisper-dictation/
+#     Aside.app/Contents/MacOS/Aside  ← this script
+#     .venv/                           ← venv installed by setup.sh
+#     src/aside/                       ← Aside package
+#
+# Dragging .app to /Applications will break it.
+# Dock it from the project directory instead.
+
+PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+VENV="$PROJECT_DIR/.venv"
+
+# Log all output to ~/Library/Logs so they're diagnosable
+LOG_DIR="$HOME/Library/Logs/Aside"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/aside.log"
+echo "--- Launch $(date) ---" >> "$LOG_FILE"
+exec >>"$LOG_FILE" 2>&1
+
+if [ ! -d "$VENV" ]; then
+    osascript -e 'display dialog "Setup not complete.\n\nPlease open Terminal, navigate to the whisper-dictation folder, and run:\n\n    ./setup.sh" with title "Aside" buttons {"OK"} default button "OK" with icon caution'
+    exit 1
+fi
+
+source "$VENV/bin/activate"
+exec python -m aside
