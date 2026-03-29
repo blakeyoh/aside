@@ -23,30 +23,42 @@ Your audio never leaves your Mac. Aside makes zero network calls during normal o
 
 ## Quick Start
 
-### Option 1: Homebrew (coming soon)
+**Requirements:** macOS 14+, Homebrew. Python 3.13 is installed automatically if missing.
 
 ```bash
-brew tap aside-app/aside
-brew install aside
-```
-
-### Option 2: Manual install
-
-```bash
-# Prerequisites: macOS 14+, Python 3.13+, Homebrew
-brew install portaudio
-
-git clone https://github.com/aside-app/aside.git
+git clone https://github.com/blakeyoh/aside.git
 cd aside
 ./setup.sh
-
-# Launch
-open Aside.app
-# or
-./run.sh
 ```
 
-On first launch, Aside downloads the Whisper model (~150MB for `base`, ~290MB for `small`). This is a one-time download; after that, no network access occurs.
+`setup.sh` installs all dependencies, downloads the Whisper `base` model (~140 MB, one-time), and prepares `Aside.app`. This takes a few minutes on first run.
+
+### Grant permissions (required)
+
+Aside needs three permissions in **System Settings → Privacy & Security**. Add whichever terminal app you ran `setup.sh` from (Terminal, iTerm2, Warp, etc.) to each list. If you launch via Finder, add `Aside.app` as well.
+
+| Permission | Why |
+|---|---|
+| **Microphone** | Capture your voice |
+| **Accessibility** | Type text into other apps |
+| **Input Monitoring** | Detect hotkey while another app is focused |
+
+macOS will prompt for most of these on first use — click **Allow**.
+
+### Launch
+
+Double-click `Aside.app` in the project folder, or drag it to your Dock first. You can also move it to `/Applications` after running `setup.sh`.
+
+```bash
+# Terminal alternative
+source .venv/bin/activate && python -m aside
+```
+
+A microphone icon appears in your menu bar when Aside is running. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
+
+> **First launch on a new machine:** macOS may show a security prompt the first time you open `Aside.app`. Right-click → Open → Open to bypass it, or run `setup.sh` first (it clears the quarantine flag automatically).
+
+On first launch, Aside downloads the Whisper model (~140 MB for `base`). This is a one-time download — after that, no network access occurs.
 
 ## Aside vs. Wispr Flow
 

@@ -16,10 +16,10 @@
 ## Next: Manual Smoke Test
 - [ ] Run through `docs/smoke-test-plan.md` (6-phase Boeing FAI-style plan)
 - [ ] Fix any bugs discovered during smoke testing
-- [ ] Verify setup.sh works on a clean checkout
+- [ ] Verify setup.sh works on a clean checkout on another machine
 
 ## Short-term
-- [ ] **Aside-branded menu bar icon** — replace hippo placeholder with Aside icon
+- ~~**Aside-branded menu bar icon**~~ — done 2026-03-29 (aside-logo.png → AppIcon.icns)
 - [ ] **Homebrew formula** — `Formula/aside.rb` for `brew tap blakeyoh/aside && brew install aside`
 - [ ] **Transcribing state in menu bar icon** — distinct visual while Whisper processes (not just recording)
 - [ ] **Hotkey capture cancel button** — abort without pressing a combo

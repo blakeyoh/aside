@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from AppKit import (
-        NSApplication, NSApplicationActivationPolicyRegular,
+        NSApplication, NSApplicationActivationPolicyAccessory,
         NSObject, NSAlert, NSSound,
         NSStatusBar, NSVariableStatusItemLength,
         NSMenu, NSMenuItem,
@@ -90,7 +90,7 @@ class MenuBar:
             return
 
         NSApplication.sharedApplication().setActivationPolicy_(
-            NSApplicationActivationPolicyRegular
+            NSApplicationActivationPolicyAccessory
         )
 
         delegate = _MenuDelegate.alloc().init()

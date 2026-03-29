@@ -1,5 +1,17 @@
 # Aside — CHANGELOG
 
+## 2026-03-29 — Cross-machine install hardening + UI fixes
+
+- Fixed "shows as Python" in Dock/Cmd+Tab: changed `NSApplicationActivationPolicyRegular` → `NSApplicationActivationPolicyAccessory` in `menubar.py`
+- Settings window now scrollable via `CTkScrollableFrame`; fixed window geometry to 480×680
+- Replaced hippo placeholder with Aside-branded menu bar icon and header icon (`aside-logo.png` → `AppIcon.icns`)
+- `setup.sh`: auto-installs Python 3.13 via Homebrew if missing; adds `chmod +x` on launcher, `xattr -cr` to clear Gatekeeper quarantine, writes `~/.aside/install_path.txt`
+- `.app` launcher now reads `~/.aside/install_path.txt` first — allows `Aside.app` to live in `/Applications`
+- Fixed `.gitignore`: bare `app.py` pattern was silently excluding `src/aside/ui/app.py` from the repo; anchored to `/app.py`
+- Added `generate-icon.sh` to regenerate `AppIcon.icns` from `aside-logo.png`
+- Updated README Quick Start with accurate clone URL, permissions table, and Gatekeeper note
+- Files: `menubar.py`, `app.py`, `setup.sh`, `Aside.app/Contents/MacOS/Aside`, `AppIcon.icns`, `.gitignore`, `README.md`, `generate-icon.sh`
+
 ## 2026-03-22 — Aside v1: Full extract, restructure, and rebrand
 
 - Extracted Hushed Hippo into `src/aside/` package (23 modules, 5 subpackages: engine/, commands/, dictionary/, punctuation/, ui/)

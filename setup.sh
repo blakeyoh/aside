@@ -28,13 +28,33 @@ for candidate in \
 done
 
 if [ -z "$PYTHON" ]; then
-    echo "❌  Python 3.13+ not found."
+    echo "⚠️   Python 3.13+ not found."
     echo ""
-    echo "    Install Homebrew Python:"
-    echo "      brew install python@3.13"
-    echo ""
-    echo "    Or download from https://python.org"
-    exit 1
+
+    # Ensure Homebrew is available before attempting auto-install
+    if ! command -v brew &>/dev/null; then
+        echo "    Homebrew is also missing. Install it first:"
+        echo "      /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+        echo ""
+        echo "    Then re-run: ./setup.sh"
+        exit 1
+    fi
+
+    echo "    Installing Python 3.13 via Homebrew…"
+    brew install python@3.13
+
+    # Re-probe after install
+    for candidate in /opt/homebrew/bin/python3.13 /usr/local/bin/python3.13 python3.13; do
+        if command -v "$candidate" &>/dev/null; then
+            PYTHON="$candidate"
+            break
+        fi
+    done
+
+    if [ -z "$PYTHON" ]; then
+        echo "❌  Python 3.13 install failed. Try manually: brew install python@3.13"
+        exit 1
+    fi
 fi
 echo "✅  Python $($PYTHON --version | cut -d' ' -f2)  ($PYTHON)"
 
@@ -140,25 +160,43 @@ if failed:
 "
 echo "✅  All dependencies verified"
 
+# ── Fix .app bundle ───────────────────────────────────────────────────────────
+# Ensure launcher is executable (git may not preserve the +x bit on all systems)
+chmod +x "$SCRIPT_DIR/Aside.app/Contents/MacOS/Aside"
+echo "✅  Launcher executable"
+
+# Clear Gatekeeper quarantine (set when files are downloaded from the internet)
+xattr -cr "$SCRIPT_DIR/Aside.app" 2>/dev/null || true
+echo "✅  Quarantine flag cleared"
+
+# Store install path so Aside.app can find the venv even if moved to /Applications
+ASIDE_DIR="$HOME/.aside"
+mkdir -p "$ASIDE_DIR"
+echo "$SCRIPT_DIR" > "$ASIDE_DIR/install_path.txt"
+echo "✅  Install path registered: $SCRIPT_DIR"
+
 # ── Permissions reminder ──────────────────────────────────────────────────────
 echo ""
 echo "============================================"
 echo "  Setup complete!"
 echo "============================================"
 echo ""
-echo "Before running, grant these permissions in:"
+echo "⚠️   IMPORTANT: grant these permissions before launching."
+echo ""
 echo "System Settings → Privacy & Security"
 echo ""
-echo "  • Microphone       → add your Terminal app"
-echo "  • Accessibility    → add your Terminal app"
-echo "  • Input Monitoring → add your Terminal app"
+echo "  • Microphone       → add Terminal (or iTerm2 / Warp / whichever you use)"
+echo "  • Accessibility    → add Terminal (same app you ran this script from)"
+echo "  • Input Monitoring → add Terminal (same app)"
+echo ""
+echo "If you launch via Finder (Option A below), also add Aside.app to each list."
+echo "macOS may prompt automatically on first use — click Allow when it does."
 echo ""
 echo "─────────────────────────────────────────────"
 echo ""
 echo "To launch:"
 echo ""
-echo "  Option A — double-click in Finder:"
-echo "    Aside.app"
+echo "  Option A — double-click Aside.app in Finder"
 echo "    (drag it to your Dock for quick access)"
 echo ""
 echo "  Option B — Terminal:"

@@ -21,10 +21,12 @@ Open-source privacy-first voice dictation for macOS. Push-to-talk and toggle hot
 ## Setup & Launch
 
 ```bash
-./setup.sh                          # one-time: creates .venv, installs deps, downloads base model
+./setup.sh                          # one-time: creates .venv, installs deps, downloads base model, clears Gatekeeper quarantine
 .venv/bin/python3 -m aside          # launch via Terminal
-# OR: double-click Aside.app (must stay in repo directory)
+# OR: double-click Aside.app (can be moved to /Applications after setup.sh runs)
 ```
+
+`setup.sh` auto-installs Python 3.13 via Homebrew if missing. It writes `~/.aside/install_path.txt` so `Aside.app` can find the venv from `/Applications` or anywhere.
 
 Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migrated from HushedHippo and WhisperDictation paths on first launch.
 
@@ -171,7 +173,6 @@ These were discovered during implementation and aren't obvious from the code alo
 
 ## Deferred Work
 
-- Aside-branded menu bar icon (currently hippo placeholder)
 - Homebrew formula (`Formula/aside.rb`)
 - PyInstaller standalone `.app`
 - Code signing / Gatekeeper notarization

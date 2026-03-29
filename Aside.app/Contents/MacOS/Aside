@@ -1,16 +1,18 @@
 #!/bin/bash
 # Entry point for Aside.app
 #
-# Required layout (bundle must stay in the project directory):
-#   whisper-dictation/
-#     Aside.app/Contents/MacOS/Aside  ← this script
-#     .venv/                           ← venv installed by setup.sh
-#     src/aside/                       ← Aside package
-#
-# Dragging .app to /Applications will break it.
-# Dock it from the project directory instead.
+# Finds the Python venv in two ways (in priority order):
+#   1. ~/.aside/install_path.txt  — written by setup.sh; allows Aside.app to
+#      live anywhere, including /Applications.
+#   2. Relative path ../../..     — fallback when the .app is still inside the
+#      project directory (e.g., directly after a fresh git clone).
 
-PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+INSTALL_PATH_FILE="$HOME/.aside/install_path.txt"
+if [ -f "$INSTALL_PATH_FILE" ]; then
+    PROJECT_DIR=$(cat "$INSTALL_PATH_FILE")
+else
+    PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+fi
 VENV="$PROJECT_DIR/.venv"
 
 # Log all output to ~/Library/Logs so they're diagnosable

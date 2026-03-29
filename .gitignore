@@ -22,10 +22,10 @@ build/
 .aside/
 
 # Old Hushed Hippo files (reference only)
-app.py
-engine.py
-test_engine.py
-run.sh
+/app.py
+/engine.py
+/test_engine.py
+/run.sh
 HushedHippo.app/
 hushed-hippo-menu-bar-icon.png
 requirements.txt
