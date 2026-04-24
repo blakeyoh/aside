@@ -30,7 +30,7 @@ Before running any test, establish the known baseline.
 
 - [ ] **PF-3: Verify package installation**
   - Run: `.venv/bin/python3 -c "import aside; print(aside.__version__)"`
-  - Expected: `1.0.0`
+  - Expected: `1.0.1`
   - **GATE:** If import fails, run `pip install -e .` and retry.
 
 - [ ] **PF-4: Verify unit tests**
@@ -66,7 +66,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 ### T1.2: Terminal Launch
 
 - [ ] Run: `.venv/bin/python3 -m aside`
-- [ ] Expected: NO window appears. Menu bar shows icon (hippo placeholder).
+- [ ] Expected: NO window appears. Menu bar shows Aside microphone icon.
 - [ ] Verify: menu bar icon is visible in top-right area
 - [ ] **GATE:** If window appears on launch, quiet-launch is broken.
 - [ ] **Result:** ________________________________________
@@ -78,6 +78,13 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Verify: Model dropdown shows "base", Language shows "Auto-detect"
 - [ ] Verify: Hotkey shows "Ctrl + Alt + Space"
 - [ ] Verify: Dictionary section shows "0 / 50 terms"
+- [ ] **Result:** ________________________________________
+
+### T1.3a: Finder/Dock Launch
+
+- [ ] Double-click `Aside.app`
+- [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
+- [ ] Expected: no Dock running dot; Aside is configured as a menu-bar agent app
 - [ ] **Result:** ________________________________________
 
 ### T1.4: Window Hide (not Quit)

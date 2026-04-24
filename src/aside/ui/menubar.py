@@ -85,6 +85,7 @@ class MenuBar:
         self._status_item = None
         self._idle_icon = None
         self._record_icon = None
+        self._transcribe_icon = None
 
         if not APPKIT_AVAILABLE:
             return
@@ -107,7 +108,12 @@ class MenuBar:
             item.button().setImage_(bar_image)
             item.button().setTitle_("")
             self._idle_icon = bar_image
-            self._record_icon = self._make_recording_icon(bar_image)
+            self._record_icon = self._make_badged_icon(
+                bar_image, (1.0, 0.624, 0.039, 1.0)
+            )
+            self._transcribe_icon = self._make_badged_icon(
+                bar_image, (0.039, 0.518, 1.0, 1.0)
+            )
         else:
             logger.warning("Menu bar icon not found: %s", icon_path)
             item.button().setTitle_("A")
@@ -138,21 +144,32 @@ class MenuBar:
         self._status_item = item
 
     def set_recording(self, is_recording: bool) -> None:
+        self.set_state("recording" if is_recording else "ready")
+
+    def set_state(self, state: str) -> None:
         if not self._status_item:
             return
         try:
-            icon = self._record_icon if is_recording else self._idle_icon
+            if state == "recording":
+                icon = self._record_icon
+            elif state == "transcribing":
+                icon = self._transcribe_icon
+            else:
+                icon = self._idle_icon
             if icon:
                 self._status_item.button().setImage_(icon)
         except Exception:
             pass
 
     @staticmethod
-    def _make_recording_icon(idle_icon: "NSImage") -> "NSImage":
+    def _make_badged_icon(
+        idle_icon: "NSImage",
+        rgba: tuple[float, float, float, float],
+    ) -> "NSImage":
         size = 22.0
         img = NSImage.alloc().initWithSize_((size, size))
         img.lockFocus()
-        NSColor.colorWithSRGBRed_green_blue_alpha_(1.0, 0.624, 0.039, 1.0).setFill()
+        NSColor.colorWithSRGBRed_green_blue_alpha_(*rgba).setFill()
         NSBezierPath.bezierPathWithOvalInRect_(((0.0, 0.0), (size, size))).fill()
         if idle_icon:
             idle_icon.drawInRect_(((0.0, 0.0), (size, size)))

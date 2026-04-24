@@ -8,11 +8,20 @@
 #      project directory (e.g., directly after a fresh git clone).
 
 INSTALL_PATH_FILE="$HOME/.aside/install_path.txt"
+FALLBACK_PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+PROJECT_DIR=""
+
 if [ -f "$INSTALL_PATH_FILE" ]; then
-    PROJECT_DIR=$(cat "$INSTALL_PATH_FILE")
-else
-    PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+    CANDIDATE_PROJECT_DIR=$(head -n 1 "$INSTALL_PATH_FILE")
+    if [ -d "$CANDIDATE_PROJECT_DIR/.venv" ]; then
+        PROJECT_DIR="$CANDIDATE_PROJECT_DIR"
+    fi
 fi
+
+if [ -z "$PROJECT_DIR" ]; then
+    PROJECT_DIR="$FALLBACK_PROJECT_DIR"
+fi
+
 VENV="$PROJECT_DIR/.venv"
 
 # Log all output to ~/Library/Logs so they're diagnosable
@@ -21,6 +30,8 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/aside.log"
 echo "--- Launch $(date) ---" >> "$LOG_FILE"
 exec >>"$LOG_FILE" 2>&1
+echo "PROJECT_DIR=$PROJECT_DIR"
+echo "VENV=$VENV"
 
 if [ ! -d "$VENV" ]; then
     osascript -e 'display dialog "Setup not complete.\n\nPlease open Terminal, navigate to the whisper-dictation folder, and run:\n\n    ./setup.sh" with title "Aside" buttons {"OK"} default button "OK" with icon caution'
@@ -28,4 +39,5 @@ if [ ! -d "$VENV" ]; then
 fi
 
 source "$VENV/bin/activate"
+export ASIDE_SHOW_SETTINGS_ON_LAUNCH=1
 exec python -m aside

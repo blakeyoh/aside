@@ -47,14 +47,14 @@ macOS will prompt for most of these on first use — click **Allow**.
 
 ### Launch
 
-Double-click `Aside.app` in the project folder, or drag it to your Dock first. You can also move it to `/Applications` after running `setup.sh`.
+Double-click `Aside.app` in the project folder, or drag it to your Dock first. You can also move it to `/Applications` after running `setup.sh`. Finder/Dock launch opens Settings once so you can confirm Aside started; terminal launch starts hidden and is controlled from the menu bar.
 
 ```bash
 # Terminal alternative
 source .venv/bin/activate && python -m aside
 ```
 
-A microphone icon appears in your menu bar when Aside is running. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
+A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
 
 > **First launch on a new machine:** macOS may show a security prompt the first time you open `Aside.app`. Right-click → Open → Open to bypass it, or run `setup.sh` first (it clears the quarantine flag automatically).
 
@@ -78,7 +78,7 @@ Wispr Flow is faster and more accurate — if privacy isn't a concern, it's a gr
 
 ## Voice Commands
 
-Aside recognizes 12 voice commands for formatting and editing. Say them naturally as part of your dictation — Aside strips them from the output and applies the action.
+Aside recognizes 12 voice commands for formatting and editing. Say them naturally as part of your dictation — Aside strips them from the output and applies the action inline. Spoken punctuation commands take priority at their location, while Whisper punctuation elsewhere is preserved.
 
 See [docs/voice-commands.md](docs/voice-commands.md) for the full reference.
 

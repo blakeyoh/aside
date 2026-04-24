@@ -15,6 +15,10 @@ class TestCapitalization:
         result = format_text("hello world", capitalization="sentence")
         assert result == "Hello world"
 
+    def test_sentence_case_after_newline(self):
+        result = format_text("first line\nsecond line", capitalization="sentence")
+        assert result == "First line\nSecond line"
+
     def test_as_spoken_preserves_original(self):
         result = format_text("hELLo WoRLd", capitalization="as-spoken")
         assert result == "hELLo WoRLd"

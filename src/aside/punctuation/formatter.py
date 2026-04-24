@@ -60,7 +60,7 @@ def _sentence_case(text: str) -> str:
         if capitalize_next and ch.isalpha():
             chars[i] = ch.upper()
             capitalize_next = False
-        elif ch in _SENTENCE_ENDINGS:
+        elif ch in _SENTENCE_ENDINGS or ch == "\n":
             capitalize_next = True
 
     return "".join(chars)

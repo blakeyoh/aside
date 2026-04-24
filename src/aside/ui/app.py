@@ -11,6 +11,7 @@ Threading model:
 """
 import fcntl
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
@@ -27,7 +28,7 @@ from aside.config import (
 )
 from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
 from aside.engine.audio import AudioCapture
-from aside.engine.hotkeys import HotkeyManager
+from aside.engine.hotkeys import HotkeyManager, hotkeys_equal, parse_hotkey
 from aside.engine.transcriber import Transcriber
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.settings import build_settings
@@ -85,10 +86,15 @@ class App(ctk.CTk):
 
         # ── Config ───────────────────────────────────────────────────────
         self.cfg = load_config()
+        if hotkeys_equal(self.cfg.get("hotkey"), self.cfg.get("toggle_hotkey")):
+            logger.warning("Toggle hotkey matched push-to-talk hotkey; disabling toggle")
+            self.cfg["toggle_hotkey"] = None
+            save_config(self.cfg)
 
         # ── State ────────────────────────────────────────────────────────
         self._state = "loading"  # loading → ready → recording → transcribing
         self._toggle_active = False  # toggle-hotkey recording mode
+        self._hotkey_poll_failed = False
 
         # ── Status bar (top of window) ───────────────────────────────────
         status_frame = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
@@ -120,7 +126,9 @@ class App(ctk.CTk):
         # ── Wire settings button callbacks ───────────────────────────────
         self._widgets["apply_btn"].configure(command=self._on_apply)
         self._widgets["hotkey_btn"].configure(command=self._on_capture_hotkey)
+        self._widgets["hotkey_cancel_btn"].configure(command=self._on_cancel_hotkey_capture)
         self._widgets["toggle_btn"].configure(command=self._on_capture_toggle)
+        self._widgets["toggle_cancel_btn"].configure(command=self._on_cancel_hotkey_capture)
         self._widgets["toggle_clear_btn"].configure(command=self._on_clear_toggle)
         self._widgets["hw_add_btn"].configure(command=self._on_add_hotword)
         self._widgets["rep_add_btn"].configure(command=self._on_add_replacement)
@@ -147,7 +155,7 @@ class App(ctk.CTk):
         # ── Menu bar ────────────────────────────────────────────────────
         self._menubar = MenuBar(
             icon_path=ICON_PATH,
-            show_callback=self._show_settings,
+            show_callback=self._request_show_settings,
             quit_callback=self._on_quit,
         )
 
@@ -157,6 +165,8 @@ class App(ctk.CTk):
         # ── Kick off engine ─────────────────────────────────────────────
         self.after_idle(self._start_engine)
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
+        if os.environ.get("ASIDE_SHOW_SETTINGS_ON_LAUNCH") == "1":
+            self.after(300, self._show_settings)
 
     # ── Engine startup ───────────────────────────────────────────────────
 
@@ -175,20 +185,33 @@ class App(ctk.CTk):
     def _poll_hotkeys(self):
         try:
             self._hotkeys.poll()
+            self._hotkey_poll_failed = False
         except Exception:
-            pass
+            if not self._hotkey_poll_failed:
+                logger.exception("Hotkey polling failed")
+                self._show_status_message("Hotkey error; check logs")
+            self._hotkey_poll_failed = True
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
 
     # ── Hotkey events ────────────────────────────────────────────────────
 
     def _on_hotkey_event(self, event_type: int, keycode: int, flags: int):
         """Handle hotkey events from the event tap (main thread via poll)."""
-        from Quartz import kCGEventKeyDown, kCGEventKeyUp
-        from aside.engine.hotkeys import parse_hotkey
+        from Quartz import kCGEventKeyDown, kCGEventKeyUp, kCGEventFlagsChanged
 
         hk_mod, hk_key = parse_hotkey(self.cfg["hotkey"])
         tg_cfg = self.cfg.get("toggle_hotkey")
         tg_mod, tg_key = parse_hotkey(tg_cfg) if tg_cfg else (0, -1)
+
+        if event_type == kCGEventFlagsChanged:
+            if (
+                self._state == "recording"
+                and not self._toggle_active
+                and hk_mod > 0
+                and (flags & hk_mod) != hk_mod
+            ):
+                self._stop_recording()
+            return
 
         # Check push-to-talk hotkey
         if hk_key >= 0 and keycode == hk_key and (flags & hk_mod) == hk_mod:
@@ -202,30 +225,30 @@ class App(ctk.CTk):
         if tg_key >= 0 and keycode == tg_key and (flags & tg_mod) == tg_mod:
             if event_type == kCGEventKeyDown:
                 if self._toggle_active:
-                    self._toggle_active = False
                     self._stop_recording()
                 else:
-                    self._toggle_active = True
-                    self._start_recording()
+                    self._toggle_active = self._start_recording()
             return
 
     def _start_recording(self):
         if self._state not in ("ready",):
-            return
+            return False
         if self._audio.start():
             self._set_status("recording")
-            self._menubar.set_recording(True)
             play_sound("Tink")
+            return True
+        return False
 
     def _stop_recording(self):
         if self._state != "recording":
-            return
+            return False
+        self._toggle_active = False
         self._set_status("transcribing")
-        self._menubar.set_recording(False)
         play_sound("Pop")
         threading.Thread(
             target=self._run_transcription, daemon=True, name="transcribe"
         ).start()
+        return True
 
     def _run_transcription(self):
         """Background thread: stop audio + run pipeline."""
@@ -253,6 +276,14 @@ class App(ctk.CTk):
         color, label = STATUS_MAP.get(state, (FG2, state))
         self._status_dot.configure(text_color=color)
         self._status_label.configure(text=label)
+        if hasattr(self, "_menubar"):
+            self._menubar.set_state(state)
+
+    def _show_status_message(self, message: str, *, color: str = "#FF453A"):
+        """Show a temporary status message without changing the app state."""
+        self._status_dot.configure(text_color=color)
+        self._status_label.configure(text=message)
+        self.after(2500, lambda: self._set_status(self._state))
 
     # ── Settings panel callbacks ─────────────────────────────────────────
 
@@ -285,28 +316,48 @@ class App(ctk.CTk):
 
     def _on_capture_hotkey(self):
         """Enter hotkey capture mode."""
+        self._reset_capture_ui(stop_capture=True)
         self._widgets["hotkey_lbl"].configure(text="Press keys…")
+        self._widgets["hotkey_cancel_btn"].pack(side="right", padx=(4, 0))
         self._hotkeys.start_capture(self._on_hotkey_captured)
 
     def _on_hotkey_captured(self, config: dict):
         """Hotkey captured — update UI and engine."""
+        if hotkeys_equal(config, self.cfg.get("toggle_hotkey")):
+            self._reset_capture_ui(stop_capture=False)
+            self._show_status_message("Hotkeys must be distinct")
+            play_sound("Basso")
+            return
         self.cfg["hotkey"] = config
         save_config(self.cfg)
         self._widgets["hotkey_lbl"].configure(text=hotkey_display(config))
+        self._widgets["hotkey_cancel_btn"].pack_forget()
         self._hotkeys.update_hotkey(config)
 
     def _on_capture_toggle(self):
         """Enter toggle-hotkey capture mode."""
+        self._reset_capture_ui(stop_capture=True)
         self._widgets["toggle_lbl"].configure(text="Press keys…")
+        self._widgets["toggle_cancel_btn"].pack(side="right", padx=(4, 0))
         self._hotkeys.start_capture(self._on_toggle_captured)
 
     def _on_toggle_captured(self, config: dict):
         """Toggle hotkey captured."""
+        if hotkeys_equal(config, self.cfg.get("hotkey")):
+            self._reset_capture_ui(stop_capture=False)
+            self._show_status_message("Hotkeys must be distinct")
+            play_sound("Basso")
+            return
         self.cfg["toggle_hotkey"] = config
         save_config(self.cfg)
         self._widgets["toggle_lbl"].configure(text=hotkey_display(config))
+        self._widgets["toggle_cancel_btn"].pack_forget()
         self._widgets["toggle_clear_btn"].pack(side="right", padx=(4, 0))
         self._hotkeys.update_toggle_hotkey(config)
+
+    def _on_cancel_hotkey_capture(self):
+        """Abort hotkey capture and restore current labels."""
+        self._reset_capture_ui(stop_capture=True)
 
     def _on_clear_toggle(self):
         """Clear toggle hotkey."""
@@ -315,6 +366,17 @@ class App(ctk.CTk):
         self._widgets["toggle_lbl"].configure(text="\u2014")
         self._widgets["toggle_clear_btn"].pack_forget()
         self._hotkeys.update_toggle_hotkey(None)
+
+    def _reset_capture_ui(self, *, stop_capture: bool):
+        if stop_capture:
+            self._hotkeys.stop_capture()
+        self._widgets["hotkey_lbl"].configure(text=hotkey_display(self.cfg["hotkey"]))
+        toggle_cfg = self.cfg.get("toggle_hotkey")
+        self._widgets["toggle_lbl"].configure(
+            text=hotkey_display(toggle_cfg) if toggle_cfg else "\u2014"
+        )
+        self._widgets["hotkey_cancel_btn"].pack_forget()
+        self._widgets["toggle_cancel_btn"].pack_forget()
 
     def _on_add_hotword(self):
         """Add a hotword to the dictionary file."""
@@ -355,10 +417,25 @@ class App(ctk.CTk):
 
     # ── Menu bar / window management ─────────────────────────────────────
 
+    def _request_show_settings(self):
+        """Schedule settings window display on the Tk event loop."""
+        self.after(0, self._show_settings)
+
     def _show_settings(self):
         """Show the settings window."""
+        try:
+            from AppKit import NSApplication
+            NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
+        except Exception:
+            pass
         self.deiconify()
+        self.state("normal")
         self.lift()
+        try:
+            self.attributes("-topmost", True)
+            self.after(150, lambda: self.attributes("-topmost", False))
+        except Exception:
+            pass
         self.focus_force()
 
     def _on_accessibility_error(self):

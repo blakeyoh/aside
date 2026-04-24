@@ -1,5 +1,16 @@
 # Aside — CHANGELOG
 
+## 2026-04-24 — v1.0.1: Reliability fixes
+
+- Fixed voice-command sequencing: punctuation and line-break commands now render inline with the dictated text instead of being injected before the transcript.
+- Made spoken punctuation commands primary while preserving Whisper punctuation elsewhere; duplicate nearby punctuation such as `period.` or `. period` collapses to one mark.
+- Fixed push-to-talk getting stuck when modifier keys are released before the trigger key by handling `kCGEventFlagsChanged`.
+- Rejected identical push-to-talk and toggle hotkeys so hands-free mode cannot be silently shadowed by push-to-talk.
+- Improved hotkey capture UX with Cancel buttons and visible error status when hotkey polling fails.
+- Improved `.app` launch reliability: Finder/Dock launch opens Settings on startup, logs resolved project/venv paths, validates stale install paths, and falls back to the bundle-relative checkout.
+- Added a distinct transcribing menu-bar state and kept the idle menu bar item icon-only when the icon loads.
+- Added parser/transcriber/hotkey regression coverage; unit test count is now 97.
+
 ## 2026-03-29 — Cross-machine install hardening + UI fixes
 
 - Fixed "shows as Python" in Dock/Cmd+Tab: changed `NSApplicationActivationPolicyRegular` → `NSApplicationActivationPolicyAccessory` in `menubar.py`

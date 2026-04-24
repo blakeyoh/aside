@@ -85,6 +85,17 @@ def parse_hotkey(config: dict) -> tuple[int, int]:
     return mod_mask, keycode
 
 
+def hotkeys_equal(first: dict | None, second: dict | None) -> bool:
+    """Return True when two valid hotkey configs resolve to the same combo."""
+    if not first or not second:
+        return False
+    first_mod, first_key = parse_hotkey(first)
+    second_mod, second_key = parse_hotkey(second)
+    if first_key < 0 or second_key < 0:
+        return False
+    return first_mod == second_mod and first_key == second_key
+
+
 class HotkeyManager:
     """Manages the Quartz CGEventTap and hotkey detection.
 

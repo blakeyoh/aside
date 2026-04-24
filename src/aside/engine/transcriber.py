@@ -19,7 +19,7 @@ from typing import Callable, Optional
 
 from aside.commands.actions import execute_commands
 from aside.commands.numbers import NumberMode
-from aside.commands.parser import Command, parse_commands
+from aside.commands.parser import Command, parse_transcript
 from aside.config import DICTIONARY_FILE
 from aside.dictionary.context import ContextBuffer
 from aside.dictionary.hotwords import parse_dictionary
@@ -118,10 +118,11 @@ class Transcriber:
                 return
 
             # Stage 5: Voice Command Detection
-            commands, cleaned_text = parse_commands(raw_text)
+            parsed = parse_transcript(raw_text)
+            cleaned_text = parsed.rendered_text
 
             # Handle number mode toggles
-            for cmd in commands:
+            for cmd in parsed.mode_commands:
                 if cmd == Command.NUMBERS_MODE:
                     self._number_mode.activate()
                 elif cmd == Command.WORDS_MODE:
@@ -142,10 +143,9 @@ class Transcriber:
                 )
 
             # Stage 7: Text Injection
-            non_toggle_cmds = [c for c in commands if c not in (Command.NUMBERS_MODE, Command.WORDS_MODE)]
-            if non_toggle_cmds:
+            if parsed.action_commands:
                 execute_commands(
-                    non_toggle_cmds,
+                    parsed.action_commands,
                     inject_text_fn=inject_text,
                     inject_keystroke_fn=inject_keystroke,
                     last_injection_length=self._last_injection_length,

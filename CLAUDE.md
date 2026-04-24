@@ -34,7 +34,7 @@ Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migr
 
 ```
 src/aside/
-├── __init__.py              # __version__ = "1.0.0"
+├── __init__.py              # __version__ = "1.0.1"
 ├── __main__.py              # entry point
 ├── config.py                # load/save/migrate config, DEFAULT_CONFIG
 ├── engine/
@@ -43,7 +43,7 @@ src/aside/
 │   ├── injector.py          # inject_text(), inject_keystroke() via Quartz
 │   └── transcriber.py       # Transcriber: orchestrates stages 3-8 of pipeline
 ├── commands/
-│   ├── parser.py            # parse_commands(): 12 voice commands with boundary detection
+│   ├── parser.py            # parse_transcript(): ordered commands + rendered text
 │   ├── actions.py           # execute_commands(): map Command enum to keystrokes
 │   └── numbers.py           # NumberMode: word-to-digit with _join_tokens
 ├── dictionary/
@@ -67,7 +67,7 @@ src/aside/
 3. Dictionary Pre-Proc  → dictionary/hotwords.py   [hotwords + initial_prompt]
      + context.py
 4. Whisper Transcription → engine/transcriber.py   [faster-whisper]
-5. Voice Command Detect → commands/parser.py       [boundary detection]
+5. Voice Command Detect → commands/parser.py       [ordered command rendering]
      + actions.py + numbers.py
 6. Post-Processing      → dictionary/replacements  [regex replace]
      + punctuation/formatter.py
@@ -111,7 +111,7 @@ Background thread "model-load" / "transcribe":
 | numbers mode | Sentence | Toggle digit conversion on |
 | words mode | Sentence | Toggle digit conversion off |
 
-**Boundary rules:** Dictation commands (punctuation, newlines) trigger at any word boundary. Action commands (delete, undo, select, copy, mode toggles) require sentence boundary — prevents "I'll delete that section" from triggering.
+**Boundary rules:** Dictation commands (punctuation, newlines) trigger at any word boundary and render inline in source order. Spoken punctuation commands are primary at their exact location, but Whisper punctuation elsewhere is preserved as secondary punctuation. Action commands (delete, undo, select, copy, mode toggles) require sentence boundary — prevents "I'll delete that section" from triggering.
 
 ## Custom Dictionary (3 layers)
 
@@ -124,12 +124,18 @@ File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined).
 ## Testing
 
 ```bash
-.venv/bin/python3 -m pytest tests/ -v    # 77 unit tests
+.venv/bin/python3 -m pytest tests/ -v    # 97 unit tests
 ```
 
 Manual smoke test plan: `docs/smoke-test-plan.md` (Boeing FAI-style, 6 phases, go/no-go gates)
 
 ## Critical Gotchas
+
+### Push-to-talk must stop on modifier release
+Push-to-talk hotkeys cannot rely on `kCGEventKeyUp` alone. On macOS, releasing `Ctrl` or `Alt` before the trigger key often strips the modifier flag from the later key-up event. Preserve `kCGEventFlagsChanged` handling so recording stops when the modifier is released, otherwise push-to-talk can remain stuck recording until the shortcut is pressed again.
+
+### Push-to-talk and toggle hotkeys must be distinct
+Reject configurations where the push-to-talk hotkey and toggle hotkey are identical. The push-to-talk branch wins first in the event handler, which makes toggle recording unreachable and silently breaks hands-free mode.
 
 ### Quartz callback — keep it minimal
 The CGEventTap callback runs on the background CFRunLoop thread. **Never acquire a Python `threading.Lock()` inside it.** GIL contention causes `kCGEventTapDisabledByTimeout` cycles. The callback must only: read event fields, `queue.put_nowait(raw ints)`, check plain attribute reads, return.
@@ -140,8 +146,8 @@ Use the integer `0` directly.
 ### `sounddevice.InputStream.stop()` blocks the calling thread
 **Never call it on the main thread.** The Transcriber runs stop/close on its background thread.
 
-### `.app` bundle must stay in the project directory
-`Aside.app/Contents/MacOS/Aside` resolves `.venv` by walking `../../..` from the bundle. Moving it to `/Applications` breaks the path.
+### `.app` launch path resolution
+`setup.sh` writes `~/.aside/install_path.txt` so `Aside.app` can find the project venv even when moved to `/Applications`. The launcher validates that path and falls back to walking `../../..` from the bundle for in-repo launches. Keep both paths working.
 
 ### customtkinter init order
 `ctk.set_appearance_mode()` and `ctk.set_default_color_theme()` MUST be called BEFORE `super().__init__()`. Silent failure otherwise.
@@ -155,8 +161,8 @@ Use the integer `0` directly.
 ### `NSImage.lockFocus()` is unreliable in hybrid Tk/AppKit
 Hand the raw PNG NSImage directly to `NSStatusBarButton.setImage_()` — the button scales template images automatically.
 
-### Quiet launch
-App starts withdrawn. Window only appears on "Settings..." click. `WM_DELETE_WINDOW` → `withdraw()` (not quit).
+### Launch visibility
+Terminal launch starts withdrawn and is controlled from the menu-bar icon. Finder/Dock `.app` launch sets `ASIDE_SHOW_SETTINGS_ON_LAUNCH=1`, so Settings opens once to prove the app started. `WM_DELETE_WINDOW` → `withdraw()` (not quit).
 
 ### Single-instance lock
 Lock file at `~/.aside/aside.lock` using `fcntl.flock()`. Second launch shows alert and exits.
@@ -170,11 +176,13 @@ These were discovered during implementation and aren't obvious from the code alo
 - **Task 7 (numbers):** `_join_tokens` helper concatenates consecutive digit tokens without spaces ("one two three" → "123" not "1 2 3")
 - **Task 9 (formatter tests):** Trailing space tests must use `capitalization="off"` for proper isolation
 - **Task 2 (config tests):** Base fixture patches `_MIGRATION_PATHS = []` because real HushedHippo config exists on dev machine
+- **v1.0.1 parser:** Use `parse_transcript()` in the pipeline, not legacy `parse_commands()`, so punctuation/newline commands render inline instead of moving ahead of dictated text.
+- **v1.0.1 punctuation policy:** Commands win only at their location. Do not strip Whisper punctuation globally; remove only nearby duplicate punctuation artifacts around spoken command words.
 
 ## Deferred Work
 
 - Homebrew formula (`Formula/aside.rb`)
-- PyInstaller standalone `.app`
+- PyInstaller standalone `.app` (next packaging milestone; use `--onedir --windowed`, not onefile)
 - Code signing / Gatekeeper notarization
 - SwiftUI native frontend (v2-v3)
 - Tier 2 voice commands (cap, all caps, tab, sleep/wake)

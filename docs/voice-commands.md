@@ -41,4 +41,4 @@ The parser tokenizes the transcript and matches command phrases against a known-
 
 ## Punctuation Commands vs. Auto-Punctuation
 
-Aside's Whisper model infers punctuation automatically from speech patterns. Punctuation commands are additive — use them when you want to force punctuation in a specific spot or when the model's inference doesn't match your intent.
+Aside's Whisper model infers punctuation automatically from speech patterns. When you speak an explicit punctuation command, the command is authoritative for that spot: Aside removes nearby duplicate inferred punctuation and renders the spoken command in that exact position. Whisper punctuation elsewhere in the transcript is preserved as secondary punctuation.

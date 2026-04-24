@@ -105,6 +105,13 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     hotkey_btn.pack(side="right")
     widgets["hotkey_btn"] = hotkey_btn
 
+    hotkey_cancel_btn = ctk.CTkButton(
+        hotkey_row, text="Cancel",
+        font=(FONT, 12), fg_color=BG2, text_color=FG2,
+        hover_color="#FF453A", corner_radius=6,
+    )
+    widgets["hotkey_cancel_btn"] = hotkey_cancel_btn
+
     # ── Toggle Hotkey ──────────────────────────────────────────────────────
     toggle_row = ctk.CTkFrame(frame, fg_color="transparent", corner_radius=0)
     toggle_row.pack(fill="x", pady=(10, 0))
@@ -136,6 +143,13 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     )
     toggle_btn.pack(side="right")
     widgets["toggle_btn"] = toggle_btn
+
+    toggle_cancel_btn = ctk.CTkButton(
+        toggle_row, text="Cancel",
+        font=(FONT, 12), fg_color=BG2, text_color=FG2,
+        hover_color="#FF453A", corner_radius=6,
+    )
+    widgets["toggle_cancel_btn"] = toggle_cancel_btn
 
     _divider(frame)
 

@@ -10,6 +10,7 @@ Two categories of commands:
   text, or immediately after punctuation).
 """
 import re
+from dataclasses import dataclass
 from enum import Enum, auto
 
 
@@ -64,6 +65,57 @@ _ALL_PHRASES: list[tuple[str, Command, bool]] = [
     (phrase, cmd, False) for phrase, cmd in _ACTION_PHRASES
 ]
 
+_PHRASE_LOOKUP = {
+    phrase: (cmd, is_dictation)
+    for phrase, cmd, is_dictation in _ALL_PHRASES
+}
+_PHRASE_PATTERN = re.compile(
+    r"\b("
+    + "|".join(
+        re.escape(phrase)
+        for phrase in sorted(_PHRASE_LOOKUP, key=len, reverse=True)
+    )
+    + r")\b",
+    re.IGNORECASE,
+)
+
+_DICTATION_OUTPUT = {
+    Command.PERIOD: ".",
+    Command.COMMA: ",",
+    Command.QUESTION_MARK: "?",
+    Command.EXCLAMATION: "!",
+    Command.NEW_LINE: "\n",
+    Command.NEW_PARAGRAPH: "\n\n",
+}
+_PUNCTUATION_COMMANDS = {
+    Command.PERIOD,
+    Command.COMMA,
+    Command.QUESTION_MARK,
+    Command.EXCLAMATION,
+}
+_ACTION_COMMANDS = {
+    Command.DELETE_THAT,
+    Command.UNDO,
+    Command.SELECT_ALL,
+    Command.COPY,
+}
+_MODE_COMMANDS = {
+    Command.NUMBERS_MODE,
+    Command.WORDS_MODE,
+}
+_ARTIFACT_PUNCT = ".?!,;:"
+
+
+@dataclass(frozen=True)
+class ParsedTranscript:
+    """Parsed voice-command result with both legacy and rendered text forms."""
+
+    commands: list[Command]
+    cleaned_text: str
+    rendered_text: str
+    action_commands: list[Command]
+    mode_commands: list[Command]
+
 
 def _is_sentence_boundary_before(text: str, start: int) -> bool:
     """Return True if `start` is a sentence-level boundary (start of text or after punct)."""
@@ -81,58 +133,116 @@ def _is_sentence_boundary_after(text: str, end: int) -> bool:
     return not after or after[0] in _BOUNDARY_PUNCT
 
 
+def parse_transcript(text: str) -> ParsedTranscript:
+    """Parse text and render inline dictation commands in source order."""
+    if not text or not text.strip():
+        return ParsedTranscript([], text, text, [], [])
+
+    source = text.strip()
+    lower = source.lower()
+    commands: list[Command] = []
+    clean_parts: list[str] = []
+    render_parts: list[str] = []
+    cursor = 0
+
+    for match in _PHRASE_PATTERN.finditer(source):
+        if match.start() < cursor:
+            continue
+
+        phrase = match.group(0).lower()
+        cmd, is_dictation = _PHRASE_LOOKUP[phrase]
+        start, end = match.start(), match.end()
+
+        if not is_dictation:
+            before_bound = _is_sentence_boundary_before(lower, start)
+            after_bound = _is_sentence_boundary_after(lower, end)
+            if not (before_bound or after_bound):
+                continue
+
+        before_text = source[cursor:start]
+        skip_end = end
+
+        if is_dictation:
+            before_text = _strip_preceding_artifact(before_text, cmd)
+            skip_end = _skip_following_artifact(source, end)
+
+        _append_text(clean_parts, before_text)
+        _append_text(render_parts, before_text)
+        commands.append(cmd)
+
+        if is_dictation:
+            _append_dictation_output(render_parts, cmd)
+
+        cursor = skip_end
+
+    tail = source[cursor:]
+    _append_text(clean_parts, tail)
+    _append_text(render_parts, tail)
+
+    return ParsedTranscript(
+        commands=commands,
+        cleaned_text="".join(clean_parts).strip(),
+        rendered_text="".join(render_parts).strip(" \t"),
+        action_commands=[cmd for cmd in commands if cmd in _ACTION_COMMANDS],
+        mode_commands=[cmd for cmd in commands if cmd in _MODE_COMMANDS],
+    )
+
+
 def parse_commands(text: str) -> tuple[list[Command], str]:
     """Parse voice commands from transcribed text.
 
     Returns (list_of_commands, cleaned_text_without_commands).
 
-    Dictation commands (punctuation/formatting) trigger whenever spoken as a
-    standalone phrase — they can appear anywhere in the utterance.
-
-    Action commands (delete, undo, copy, etc.) only trigger at sentence
-    boundaries: start of text, end of text, or immediately after punctuation.
+    This compatibility wrapper preserves the original public contract. New
+    pipeline code should use parse_transcript() to preserve inline command order.
     """
-    if not text or not text.strip():
-        return [], text
+    parsed = parse_transcript(text)
+    return parsed.commands, parsed.cleaned_text
 
-    commands: list[Command] = []
-    working = text.strip()
 
-    # Multiple passes — extract commands until no more found
-    changed = True
-    while changed:
-        changed = False
-        lower = working.lower()
+def _append_text(parts: list[str], text: str) -> None:
+    chunk = re.sub(r"\s+", " ", text).strip()
+    if not chunk:
+        return
+    if parts:
+        current = "".join(parts)
+        if current and current[-1] not in (" ", "\n"):
+            parts.append(" ")
+    parts.append(chunk)
 
-        for phrase, cmd, is_dictation in _ALL_PHRASES:
-            pattern = re.compile(r'\b' + re.escape(phrase) + r'\b', re.IGNORECASE)
 
-            for match in pattern.finditer(lower):
-                start, end = match.start(), match.end()
+def _rstrip_parts(parts: list[str]) -> None:
+    if not parts:
+        return
+    parts[-1] = parts[-1].rstrip()
+    if not parts[-1]:
+        parts.pop()
 
-                if is_dictation:
-                    # Dictation commands: trigger at any word boundary (no embedded
-                    # partial matches — \b already ensures word boundary)
-                    triggers = True
-                else:
-                    # Action commands: require sentence-level boundary on at least
-                    # one side, AND not mid-sentence (both sides surrounded by words)
-                    before_bound = _is_sentence_boundary_before(lower, start)
-                    after_bound = _is_sentence_boundary_after(lower, end)
-                    triggers = before_bound or after_bound
 
-                if triggers:
-                    commands.append(cmd)
-                    before_text = working[:start].rstrip()
-                    after_text = working[end:].lstrip()
-                    if before_text and after_text:
-                        working = before_text + " " + after_text
-                    else:
-                        working = before_text + after_text
-                    changed = True
-                    break
+def _strip_preceding_artifact(text: str, cmd: Command) -> str:
+    if cmd not in _PUNCTUATION_COMMANDS:
+        return text
+    return re.sub(rf"\s*[{re.escape(_ARTIFACT_PUNCT)}]\s*$", " ", text)
 
-            if changed:
-                break
 
-    return commands, working.strip()
+def _skip_following_artifact(text: str, start: int) -> int:
+    match = re.match(rf"\s*[{re.escape(_ARTIFACT_PUNCT)}]", text[start:])
+    if match:
+        return start + match.end()
+    return start
+
+
+def _append_dictation_output(parts: list[str], cmd: Command) -> None:
+    output = _DICTATION_OUTPUT.get(cmd)
+    if not output:
+        return
+
+    _rstrip_parts(parts)
+    if output.startswith("\n"):
+        parts.append(output)
+        return
+
+    current = "".join(parts)
+    if current and current[-1] in _ARTIFACT_PUNCT:
+        parts[-1] = parts[-1].rstrip(_ARTIFACT_PUNCT).rstrip()
+    parts.append(output)
