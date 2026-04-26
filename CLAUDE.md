@@ -181,9 +181,4 @@ These were discovered during implementation and aren't obvious from the code alo
 
 ## Deferred Work
 
-- Homebrew formula (`Formula/aside.rb`)
-- PyInstaller standalone `.app` (next packaging milestone; use `--onedir --windowed`, not onefile)
-- Code signing / Gatekeeper notarization
-- SwiftUI native frontend (v2-v3)
-- Tier 2 voice commands (cap, all caps, tab, sleep/wake)
-- Interactive tutorial webpage ("training range" for voice commands)
+See `docs/packaging-plan.md` and `docs/packaging-status.md` for the active packaging effort and per-issue handoff context.
