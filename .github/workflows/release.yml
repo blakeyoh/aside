@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  release:
+    runs-on: macos-14  # Apple Silicon — matches arm64-only build target
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew dependencies
+        run: brew install python@3.13 portaudio create-dmg
+
+      - name: Set up Python environment
+        run: |
+          python3.13 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install py2app huggingface_hub
+          .venv/bin/pip install -e .
+
+      - name: Build Aside.app
+        run: scripts/build_app.sh release
+
+      - name: Codesign
+        # Uses ad-hoc identity (-) until Apple Developer enrollment is complete.
+        # After enrollment: add a CODESIGN_IDENTITY repository secret containing
+        # your Developer ID Application certificate name, then change "-" below to
+        # "${{ secrets.CODESIGN_IDENTITY }}".
+        run: |
+          codesign --deep --force --sign - \
+            --entitlements entitlements.plist dist/Aside.app
+
+      # ── Notarization — uncomment after Apple Developer enrollment ─────────
+      #
+      # Required secrets (Settings → Secrets → Actions):
+      #   APPLE_ID          your Apple ID email
+      #   APPLE_TEAM_ID     10-character team ID from developer.apple.com
+      #   NOTARIZE_PASSWORD app-specific password from appleid.apple.com
+      #   CODESIGN_IDENTITY "Developer ID Application: Your Name (TEAMID)"
+      #
+      # Also change the Codesign step above to use ${{ secrets.CODESIGN_IDENTITY }}.
+      #
+      # - name: Notarize
+      #   env:
+      #     APPLE_ID:          ${{ secrets.APPLE_ID }}
+      #     APPLE_TEAM_ID:     ${{ secrets.APPLE_TEAM_ID }}
+      #     NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
+      #   run: |
+      #     xcrun notarytool submit dist/Aside.app \
+      #       --apple-id       "$APPLE_ID" \
+      #       --team-id        "$APPLE_TEAM_ID" \
+      #       --password       "$NOTARIZE_PASSWORD" \
+      #       --wait
+      #     xcrun stapler staple dist/Aside.app
+      #
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Package DMG
+        run: scripts/package_dmg.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Aside-*.dmg
+          generate_release_notes: true

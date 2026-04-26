@@ -1,8 +1,8 @@
 # Packaging Status Board
 
 ## Current Status
-- **Phase:** 1
-- **In-flight:** Phase 1 complete — code review fixes applied, entitlements.plist added, shell Aside.app removed
+- **Phase:** 3
+- **In-flight:** Phase 3 complete — DMG packaging script, GH Actions release scaffold, README Download section
 - **Branch:** `pyinstaller-and-more`
 - **Last updated:** 2026-04-26
 
@@ -11,6 +11,7 @@
 - 2026-04-26 — Codesign ad-hoc only for v1.1.0 — Defers paid Apple enrollment while still unblocking non-technical install path.
 - 2026-04-26 — Bundle faster-whisper base model in `.app` — Avoids first-launch download UX and support complexity.
 - 2026-04-26 — Target arm64-only — Intel is intentionally unsupported for v1.1.0.
+- 2026-04-26 — Use create-dmg for DMG production — Standard drag-to-install UX, Homebrew-installable, CI-friendly.
 
 ## Phase Index
 | Phase | Issue | Title | Status | Depends on |
@@ -23,12 +24,12 @@
 | 1 | TBD | Bundle model + transcriber resource path | done | py2app bootstrap |
 | 1 | TBD | Native dylib closure verification and fixups | done | py2app bootstrap |
 | 1 | TBD | Add `scripts/build_app.sh` + clean-Mac smoke flow | done | model + dylib closure |
-| 2 | TBD | Add permission detection helpers | todo | phase 1 complete |
-| 2 | TBD | Add onboarding window + polling | todo | permissions helper |
-| 2 | TBD | First-run gate + config + Permissions menu | todo | onboarding window |
-| 2 | TBD | Audio mic-denied callback → onboarding focus | todo | first-run gate |
-| 3 | TBD | Local DMG packaging + README first-launch guidance | todo | phase 2 complete |
-| 3 | TBD | Release workflow scaffold for signing/notarization | todo | DMG packaging |
+| 2 | TBD | Add permission detection helpers | done | phase 1 complete |
+| 2 | TBD | Add onboarding window + polling | done | permissions helper |
+| 2 | TBD | First-run gate + config + Permissions menu | done | onboarding window |
+| 2 | TBD | Audio mic-denied callback → onboarding focus | done | first-run gate |
+| 3 | TBD | Local DMG packaging + README first-launch guidance | done | phase 2 complete |
+| 3 | TBD | Release workflow scaffold for signing/notarization | done | DMG packaging |
 
 ## Risk Register
 | Risk | Impact | Trigger signal | Mitigation | Owner | Status |
@@ -36,7 +37,7 @@
 | Missing native dylibs in py2app bundle | app fails at runtime | import/runtime errors in packaged app | `otool` audit + `dylibbundler` fixups | packaging assignee | open |
 | Permission APIs differ across macOS point releases | onboarding misreports status | statuses never turn green despite grants | keep detection helpers isolated; test in clean macOS 14 VM | phase 2 assignee | open |
 | Bundle size / release friction | slower downloads, install dropoff | complaints about large artifact | clearly document model-size tradeoff and expected download size | product owner | open |
-| Unsigned first launch friction | users blocked by Gatekeeper | user cannot open app from Finder | README includes explicit right-click → Open flow | docs assignee | open |
+| Unsigned first launch friction | users blocked by Gatekeeper | user cannot open app from Finder | README includes explicit right-click → Open flow | docs assignee | resolved |
 
 ## Per-Issue Handoff Blocks
 ### Phase 0 — Governance setup
@@ -62,6 +63,18 @@
 - Done: Fixed `setup_py2app.py` (removed `site_packages`, invalid `arch`, moved model dir to `resources`, added `name="Aside"`); pinned model revision in `build_app.sh`; fixed `Info.plist` `LSMinimumSystemVersion` to `11.0`; updated `transcriber._resolve_model_source` to match new bundle path; added `entitlements.plist`; removed committed `Aside.app/` shell launcher.
 - Next: Start Phase 2 Issue 6 (permission detection helpers).
 - Open questions: `MODEL_REVISION` in `build_app.sh` is set to `"main"` — replace with a pinned commit SHA before tagging a release (`git ls-remote https://huggingface.co/Systran/faster-whisper-base main`). Native dylib closure still requires validation on a clean macOS machine.
+
+### Phase 2 — Onboarding + permission preflight
+- Last commit SHA touched: 83df944
+- Done: Added `src/aside/permissions.py` (check_microphone/accessibility/input_monitoring via AVFoundation, AXIsProcessTrusted, IOHIDCheckAccess); added `src/aside/ui/onboarding.py` (CTkToplevel, 1.5 s polling, green/red dots, Open Settings deep-links, Get Started button); added `first_run_complete` to DEFAULT_CONFIG; wired `on_mic_denied` callback into AudioCapture; added Permissions… menu item to MenuBar; added first-run gate and `_show_onboarding` / `_on_mic_denied` / `_on_onboarding_complete` to App; updated `_on_accessibility_error` to use onboarding window; added pyobjc-framework-AVFoundation + IOKit deps.
+- Next: Start Phase 3 (DMG packaging + release workflow).
+- Open questions: Permission API behaviour across macOS 11–15 not yet validated in VM.
+
+### Phase 3 — DMG distribution + release workflow scaffold
+- Last commit SHA touched: _to be filled after commit_
+- Done: Added `scripts/package_dmg.sh` (ad-hoc codesign + create-dmg, version read from `__init__.py`); added `.github/workflows/release.yml` (macos-14 runner, full build → sign → package → upload pipeline, notarization fully commented and documented); updated README with Download section, right-click → Open first-launch note, macOS 11+ badge, "Developer Setup" heading.
+- Next: Smoke-test the full build on a clean arm64 Mac, bump version to 1.1.0, pin MODEL_REVISION SHA, tag v1.1.0 to trigger the release workflow.
+- Open questions: `MODEL_REVISION` in `build_app.sh` still set to `"main"` — must be replaced with a specific commit SHA before tagging. Native dylib closure still requires `otool` validation on a clean macOS machine.
 
 ## GitHub Issue Template (copy/paste)
 ```md
