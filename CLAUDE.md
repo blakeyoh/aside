@@ -34,7 +34,7 @@ Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migr
 
 ```
 src/aside/
-├── __init__.py              # __version__ = "1.0.1"
+├── __init__.py              # __version__ = "1.1.0"
 ├── __main__.py              # entry point
 ├── config.py                # load/save/migrate config, DEFAULT_CONFIG
 ├── engine/

@@ -1,5 +1,18 @@
 # Aside — CHANGELOG
 
+## 2026-04-26 — v1.1.0: One-double-click install for non-technical users
+
+- Self-contained `Aside.app` built with py2app — no Terminal, Homebrew, or `setup.sh` required for end users.
+- Whisper `base` model bundled inside the `.app` (~140 MB) so first launch needs no network access; bundled model revision pinned to a Hugging Face commit SHA in CI for reproducible release artifacts.
+- First-launch onboarding window walks the user through Microphone, Accessibility, and Input Monitoring permissions with green/red status dots, polling every 1.5 s, and "Open Settings" deep-links into the matching Privacy pane. Onboarding requires all three permissions before letting the user dismiss it; dismissing the window without granting them re-opens it on the next launch.
+- `Permissions…` menu bar item re-opens the onboarding window on demand.
+- Mic-denied path now surfaces the onboarding window instead of failing silently.
+- Local DMG packaging (`scripts/package_dmg.sh`) with ad-hoc codesigning that preserves any upstream Developer ID signature.
+- GitHub Actions release workflow (`.github/workflows/release.yml`) builds, ad-hoc signs, packages a DMG, and attaches it to a tag-triggered GitHub Release. Notarization steps stubbed in for after Apple Developer enrollment.
+- README adds a Download section and right-click → Open first-launch instructions.
+- Removed the committed `Aside.app/` shell launcher; end users get the `.dmg` from Releases, contributors continue to use `setup.sh`.
+- `LSMinimumSystemVersion` set to 11.0; arm64-only target.
+
 ## 2026-04-24 — v1.0.1: Reliability fixes
 
 - Fixed voice-command sequencing: punctuation and line-break commands now render inline with the dictated text instead of being injected before the transcript.

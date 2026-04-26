@@ -1,9 +1,9 @@
 # Packaging Status Board
 
 ## Current Status
-- **Phase:** 3
-- **In-flight:** Phase 3 complete — DMG packaging script, GH Actions release scaffold, README Download section
-- **Branch:** `pyinstaller-and-more`
+- **Phase:** 3 (smoke-test prep)
+- **In-flight:** Smoke-test preparation complete — version bumped to 1.1.0, onboarding completion gated on granted permissions, MODEL_REVISION enforced as 40-char SHA in release mode, CHANGELOG updated
+- **Branch:** `claude/prepare-smoke-test-9M52G`
 - **Last updated:** 2026-04-26
 
 ## Decisions Log
@@ -73,8 +73,14 @@
 ### Phase 3 — DMG distribution + release workflow scaffold
 - Last commit SHA touched: _to be filled after commit_
 - Done: Added `scripts/package_dmg.sh` (ad-hoc codesign + create-dmg, version read from `__init__.py`); added `.github/workflows/release.yml` (macos-14 runner, full build → sign → package → upload pipeline, notarization fully commented and documented); updated README with Download section, right-click → Open first-launch note, macOS 11+ badge, "Developer Setup" heading.
-- Next: Smoke-test the full build on a clean arm64 Mac, bump version to 1.1.0, pin MODEL_REVISION SHA, tag v1.1.0 to trigger the release workflow.
-- Open questions: `MODEL_REVISION` in `build_app.sh` still set to `"main"` — must be replaced with a specific commit SHA before tagging. Native dylib closure still requires `otool` validation on a clean macOS machine.
+- Next: Smoke-test the full build on a clean arm64 Mac, then tag v1.1.0 to trigger the release workflow.
+- Open questions: Native dylib closure still requires `otool` validation on a clean macOS machine.
+
+### Smoke-test preparation
+- Last commit SHA touched: _to be filled after commit_
+- Done: Bumped version to 1.1.0 in `__init__.py`, `pyproject.toml`, `Info.plist`, smoke-test plan, and CLAUDE.md. Added v1.1.0 entry to CHANGELOG. Fixed onboarding so `first_run_complete` is only persisted when all three permissions are granted (Get Started button is disabled until then; closing the window without grants reopens onboarding next launch). Refactored `build_app.sh` to read `MODEL_REVISION` from the environment with default `"main"`, and to reject release builds whose revision is not a 40-char hex SHA. Added `MODEL_REVISION` env wiring to the release workflow with documentation pointing at GitHub Actions repo variables. Updated PF-4 expected test count from 77 → 97 in the smoke-test plan.
+- Next: On a clean arm64 Mac, set the `MODEL_REVISION` Actions variable to the current Hugging Face SHA (`git ls-remote https://huggingface.co/Systran/faster-whisper-base main`), run `scripts/build_app.sh release` + `scripts/package_dmg.sh`, walk a non-technical tester through Phase 1–6 of the smoke-test plan, then tag `v1.1.0`.
+- Open questions: None.
 
 ## GitHub Issue Template (copy/paste)
 ```md
