@@ -62,6 +62,7 @@ class OnboardingWindow(ctk.CTkToplevel):
         self._on_complete = on_complete
         self._poll_job = None
         self._destroyed = False
+        self._all_granted = False
 
         self.title("Aside — Permissions")
         self.geometry("380x480")
@@ -111,7 +112,7 @@ class OnboardingWindow(ctk.CTkToplevel):
         # Spacer
         ctk.CTkFrame(self, fg_color="transparent", height=8).pack()
 
-        # Get Started button
+        # Get Started button — disabled until all permissions granted
         self._continue_btn = ctk.CTkButton(
             self,
             text="Get Started  →",
@@ -122,6 +123,7 @@ class OnboardingWindow(ctk.CTkToplevel):
             corner_radius=10,
             height=42,
             width=200,
+            state="disabled",
             command=self._on_continue,
         )
         self._continue_btn.pack(pady=(8, 24))
@@ -183,23 +185,38 @@ class OnboardingWindow(ctk.CTkToplevel):
                 widgets["dot"].configure(text_color=_RED)
                 widgets["btn"].configure(state="normal", text_color=FG)
 
+        self._all_granted = all_granted
         if all_granted:
-            self._continue_btn.configure(fg_color=_GREEN, text_color="#000000")
+            self._continue_btn.configure(
+                state="normal",
+                fg_color=_GREEN,
+                text_color="#000000",
+            )
         else:
-            self._continue_btn.configure(fg_color=ACCENT, text_color="#000000")
+            self._continue_btn.configure(
+                state="disabled",
+                fg_color=ACCENT,
+                text_color="#000000",
+            )
 
         self._poll_job = self.after(_POLL_MS, self._poll)
 
     # ── Actions ──────────────────────────────────────────────────────────
 
     def _on_continue(self) -> None:
+        # Only mark onboarding complete when every required permission
+        # is granted — otherwise hotkeys/recording silently break and
+        # the user has no clear path back to fix it.
+        if not self._all_granted:
+            return
         self._on_complete()
         self.destroy()
 
     def _on_close(self) -> None:
-        # Allow dismissal without completing — marks first_run_complete
-        # so the window does not reappear on every launch.
-        self._on_complete()
+        # Closing the window without all permissions granted does not
+        # persist first_run_complete, so onboarding reappears next launch.
+        if self._all_granted:
+            self._on_complete()
         self.destroy()
 
     def destroy(self) -> None:

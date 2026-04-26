@@ -24,6 +24,15 @@ jobs:
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Build Aside.app
+        # MODEL_REVISION must be pinned to a 40-char Hugging Face commit SHA
+        # so release artifacts are byte-reproducible. Set the value as a repo
+        # Actions variable (Settings → Secrets and variables → Actions →
+        # Variables → New variable, name: MODEL_REVISION). Update it when
+        # bumping the bundled Whisper model. Look it up with:
+        #   git ls-remote https://huggingface.co/Systran/faster-whisper-base main
+        # build_app.sh validates the value and fails the release if unpinned.
+        env:
+          MODEL_REVISION: ${{ vars.MODEL_REVISION }}
         run: scripts/build_app.sh release
 
       - name: Codesign

@@ -6,17 +6,40 @@ set -euo pipefail
 # Usage:
 #   scripts/build_app.sh dev      # py2app alias mode (-A)
 #   scripts/build_app.sh release  # full bundle build
-
-# Pin to a specific HuggingFace commit for reproducible builds.
-# To update: git ls-remote https://huggingface.co/Systran/faster-whisper-base main
-# Replace "main" with the full commit SHA before tagging a release.
-MODEL_REVISION="main"
+#
+# MODEL_REVISION pins the HuggingFace snapshot of the bundled Whisper model
+# so two runs of the same tagged release package identical bytes. Override
+# from the caller (release workflow / local build) with a real commit SHA:
+#
+#   MODEL_REVISION=<40-char-hex-sha> scripts/build_app.sh release
+#
+# Look up the current SHA with:
+#   git ls-remote https://huggingface.co/Systran/faster-whisper-base main
+#
+# Release builds reject "main" / non-SHA values to guarantee reproducibility.
+MODEL_REVISION="${MODEL_REVISION:-main}"
 
 MODE="${1:-release}"
 
 if [[ "$MODE" != "dev" && "$MODE" != "release" ]]; then
   echo "Usage: scripts/build_app.sh [dev|release]"
   exit 1
+fi
+
+# Release artifacts must be reproducible — refuse to build against a
+# moving branch. Dev builds may use "main" for fast iteration.
+if [[ "$MODE" == "release" ]]; then
+  if [[ ! "$MODEL_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "ERROR: release builds require MODEL_REVISION pinned to a 40-char commit SHA."
+    echo "       Current value: '${MODEL_REVISION}'"
+    echo ""
+    echo "Look up the latest SHA:"
+    echo "  git ls-remote https://huggingface.co/Systran/faster-whisper-base main"
+    echo ""
+    echo "Then re-run:"
+    echo "  MODEL_REVISION=<sha> scripts/build_app.sh release"
+    exit 1
+  fi
 fi
 
 if [[ ! -f "setup_py2app.py" ]]; then
