@@ -14,8 +14,7 @@ Stages 3-8 happen in this module's transcribe() method.
 """
 import logging
 import threading
-from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 from aside.commands.actions import execute_commands
 from aside.commands.numbers import NumberMode
@@ -26,6 +25,7 @@ from aside.dictionary.hotwords import parse_dictionary
 from aside.dictionary.replacements import apply_replacements
 from aside.engine.injector import inject_text, inject_keystroke
 from aside.punctuation.formatter import format_text
+from aside.resources import resource_path
 
 try:
     from faster_whisper import WhisperModel
@@ -33,6 +33,14 @@ except ImportError as e:
     raise SystemExit(f"faster-whisper not installed — run setup.sh\n{e}")
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_model_source(model_size: str) -> str:
+    """Prefer bundled model resources when present; otherwise use model name."""
+    bundled = resource_path(f"models/faster-whisper-{model_size}")
+    if bundled.exists():
+        return str(bundled)
+    return model_size
 
 
 class Transcriber:
@@ -67,7 +75,8 @@ class Transcriber:
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
         try:
-            model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
+            model_source = _resolve_model_source(self.model_size)
+            model = WhisperModel(model_source, device="cpu", compute_type="int8")
             with self._lock:
                 self._model = model
             self._on_status("ready")
