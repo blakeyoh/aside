@@ -160,16 +160,9 @@ if failed:
 "
 echo "✅  All dependencies verified"
 
-# ── Fix .app bundle ───────────────────────────────────────────────────────────
-# Ensure launcher is executable (git may not preserve the +x bit on all systems)
-chmod +x "$SCRIPT_DIR/Aside.app/Contents/MacOS/Aside"
-echo "✅  Launcher executable"
-
-# Clear Gatekeeper quarantine (set when files are downloaded from the internet)
-xattr -cr "$SCRIPT_DIR/Aside.app" 2>/dev/null || true
-echo "✅  Quarantine flag cleared"
-
-# Store install path so Aside.app can find the venv even if moved to /Applications
+# ── Register install path ─────────────────────────────────────────────────────
+# Stored so a packaged Aside.app (dist/Aside.app from scripts/build_app.sh)
+# can locate this venv if moved to /Applications.
 ASIDE_DIR="$HOME/.aside"
 mkdir -p "$ASIDE_DIR"
 echo "$SCRIPT_DIR" > "$ASIDE_DIR/install_path.txt"
@@ -189,18 +182,18 @@ echo "  • Microphone       → add Terminal (or iTerm2 / Warp / whichever you 
 echo "  • Accessibility    → add Terminal (same app you ran this script from)"
 echo "  • Input Monitoring → add Terminal (same app)"
 echo ""
-echo "If you launch via Finder (Option A below), also add Aside.app to each list."
 echo "macOS may prompt automatically on first use — click Allow when it does."
 echo ""
 echo "─────────────────────────────────────────────"
 echo ""
 echo "To launch:"
 echo ""
-echo "  Option A — double-click Aside.app in Finder"
-echo "    (drag it to your Dock for quick access)"
-echo ""
-echo "  Option B — Terminal:"
+echo "  Terminal:"
 echo "    source .venv/bin/activate && python -m aside"
+echo ""
+echo "  Or build a packaged .app:"
+echo "    scripts/build_app.sh release   # produces dist/Aside.app"
+echo "    scripts/package_dmg.sh         # wraps it in a DMG"
 echo ""
 echo "Hotkey: hold  Ctrl + Option + Space  to record, release to transcribe."
 echo ""

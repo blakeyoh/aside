@@ -20,6 +20,8 @@ jobs:
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install py2app huggingface_hub
           .venv/bin/pip install -e .
+          # Make the venv's python the default for all subsequent steps
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Build Aside.app
         run: scripts/build_app.sh release
