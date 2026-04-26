@@ -32,10 +32,21 @@ DMG_PATH="dist/Aside-${VERSION}.dmg"
 # Remove stale artifact so create-dmg does not fail on re-runs
 rm -f "${DMG_PATH}"
 
-echo "==> Ad-hoc codesigning dist/Aside.app"
-# Uses ad-hoc identity (-): allows right-click → Open to bypass Gatekeeper.
-# For Developer ID signing, replace - with your certificate identity string.
-codesign --deep --force --sign - --entitlements entitlements.plist dist/Aside.app
+# Only apply ad-hoc signature when the app has not already been signed with a
+# real Developer ID (Authority= is absent for ad-hoc and unsigned apps).
+# This preserves any upstream Developer ID + notarization done in CI.
+if codesign -dv dist/Aside.app 2>&1 | grep -q "^Authority="; then
+  echo "==> Preserving existing Developer ID signature"
+else
+  echo "==> Ad-hoc codesigning dist/Aside.app (no real identity present)"
+  codesign --deep --force --sign - --entitlements entitlements.plist dist/Aside.app
+fi
+
+# create-dmg copies the *contents* of its source folder into the DMG root,
+# so Aside.app must live inside a staging directory — not be the source itself.
+STAGING=$(mktemp -d)
+trap 'rm -rf "$STAGING"' EXIT
+cp -r "dist/Aside.app" "$STAGING/"
 
 echo "==> Creating ${DMG_PATH}"
 create-dmg \
@@ -47,6 +58,6 @@ create-dmg \
   --hide-extension "Aside.app" \
   --app-drop-link 480 185 \
   "${DMG_PATH}" \
-  "dist/Aside.app"
+  "${STAGING}"
 
 echo "==> Done: ${DMG_PATH}"
