@@ -51,10 +51,15 @@ if APPKIT_AVAILABLE:
     class _MenuDelegate(NSObject):
         _show_cb = None
         _quit_cb = None
+        _permissions_cb = None
 
         def showWindow_(self, sender):
             if self._show_cb:
                 self._show_cb()
+
+        def showPermissions_(self, sender):
+            if self._permissions_cb:
+                self._permissions_cb()
 
         def aboutApp_(self, sender):
             try:
@@ -81,6 +86,7 @@ class MenuBar:
         icon_path: Path,
         show_callback: Callable,
         quit_callback: Callable,
+        permissions_callback: Optional[Callable] = None,
     ):
         self._status_item = None
         self._idle_icon = None
@@ -97,6 +103,7 @@ class MenuBar:
         delegate = _MenuDelegate.alloc().init()
         delegate._show_cb = show_callback
         delegate._quit_cb = quit_callback
+        delegate._permissions_cb = permissions_callback
         self._delegate = delegate  # prevent GC
 
         bar = NSStatusBar.systemStatusBar()
@@ -132,6 +139,12 @@ class MenuBar:
         )
         show.setTarget_(delegate)
         menu.addItem_(show)
+
+        permissions = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(
+            "Permissions\u2026", "showPermissions:", ""
+        )
+        permissions.setTarget_(delegate)
+        menu.addItem_(permissions)
         menu.addItem_(NSMenuItem.separatorItem())
 
         quit_item = NSMenuItem.alloc().initWithTitle_action_keyEquivalent_(

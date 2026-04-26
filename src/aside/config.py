@@ -26,6 +26,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "smart_quotes": False,
         "trailing_space": True,
     },
+    "first_run_complete": False,
 }
 
 DICTIONARY_TEMPLATE = """\

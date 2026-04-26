@@ -31,6 +31,7 @@ from aside.engine.hotkeys import HotkeyManager, hotkeys_equal, parse_hotkey
 from aside.engine.transcriber import Transcriber
 from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
+from aside.ui.onboarding import OnboardingWindow
 from aside.ui.settings import build_settings
 from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
 
@@ -134,8 +135,11 @@ class App(ctk.CTk):
         self._widgets["rep_add_btn"].configure(command=self._on_add_replacement)
         self._widgets["reload_btn"].configure(command=self._on_reload_dictionary)
 
+        # ── Onboarding window reference ──────────────────────────────────
+        self._onboarding: OnboardingWindow | None = None
+
         # ── Engine components ────────────────────────────────────────────
-        self._audio = AudioCapture()
+        self._audio = AudioCapture(on_mic_denied=self._on_mic_denied)
         self._transcriber = Transcriber(
             model_size=self.cfg["model_size"],
             language=self.cfg.get("language"),
@@ -157,6 +161,7 @@ class App(ctk.CTk):
             icon_path=ICON_PATH,
             show_callback=self._request_show_settings,
             quit_callback=self._on_quit,
+            permissions_callback=self._request_show_onboarding,
         )
 
         # ── Window protocol ─────────────────────────────────────────────
@@ -165,7 +170,9 @@ class App(ctk.CTk):
         # ── Kick off engine ─────────────────────────────────────────────
         self.after_idle(self._start_engine)
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
-        if os.environ.get("ASIDE_SHOW_SETTINGS_ON_LAUNCH") == "1":
+        if not self.cfg.get("first_run_complete"):
+            self.after(200, self._show_onboarding)
+        elif os.environ.get("ASIDE_SHOW_SETTINGS_ON_LAUNCH") == "1":
             self.after(300, self._show_settings)
 
     # ── Engine startup ───────────────────────────────────────────────────
@@ -421,6 +428,32 @@ class App(ctk.CTk):
         """Schedule settings window display on the Tk event loop."""
         self.after(0, self._show_settings)
 
+    def _request_show_onboarding(self):
+        """Schedule onboarding window display on the Tk event loop."""
+        self.after(0, self._show_onboarding)
+
+    def _show_onboarding(self):
+        """Show (or re-show) the permissions onboarding window."""
+        if self._onboarding is not None:
+            try:
+                self._onboarding.show()
+                return
+            except Exception:
+                self._onboarding = None
+        self._onboarding = OnboardingWindow(
+            self, on_complete=self._on_onboarding_complete
+        )
+        self._onboarding.show()
+
+    def _on_onboarding_complete(self):
+        """Mark first run done and persist."""
+        self.cfg["first_run_complete"] = True
+        save_config(self.cfg)
+
+    def _on_mic_denied(self):
+        """Called by AudioCapture when mic access is denied; open onboarding."""
+        self.after(0, self._show_onboarding)
+
     def _show_settings(self):
         """Show the settings window."""
         try:
@@ -439,19 +472,8 @@ class App(ctk.CTk):
         self.focus_force()
 
     def _on_accessibility_error(self):
-        """Show alert when event tap creation fails."""
-        try:
-            from AppKit import NSAlert
-            alert = NSAlert.alloc().init()
-            alert.setMessageText_("Accessibility Permission Required")
-            alert.setInformativeText_(
-                "Aside needs Accessibility permission to detect hotkeys.\n\n"
-                "Go to System Settings → Privacy & Security → Accessibility "
-                "and add your Terminal app."
-            )
-            alert.runModal()
-        except Exception:
-            logger.error("Cannot create event tap — check Accessibility permissions")
+        """Show onboarding window when event tap creation fails."""
+        self.after(0, self._show_onboarding)
 
     def _on_quit(self):
         """Clean shutdown."""
