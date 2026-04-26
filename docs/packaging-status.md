@@ -1,8 +1,8 @@
 # Packaging Status Board
 
 ## Current Status
-- **Phase:** 0
-- **In-flight:** Phase 0 completed in-repo docs + issue drafts prepared
+- **Phase:** 1
+- **In-flight:** Issue 1 complete — added resource helper + icon path refactor
 - **Branch:** `ai/plan-macos-packaging-mojG0`
 - **Last updated:** 2026-04-26
 
@@ -18,7 +18,7 @@
 | 0 | draft | Commit packaging plan to repo | done | - |
 | 0 | draft | Create status board + handoff protocol | done | - |
 | 0 | draft | Update CLAUDE deferred-work pointer | done | - |
-| 1 | TBD | Add `resources.py` + refactor `ICON_PATH` | todo | - |
+| 1 | TBD | Add `resources.py` + refactor `ICON_PATH` | done | - |
 | 1 | TBD | Add `setup_py2app.py` + launchable first app bundle | todo | previous |
 | 1 | TBD | Bundle model + transcriber resource path | todo | py2app bootstrap |
 | 1 | TBD | Native dylib closure verification and fixups | todo | py2app bootstrap |
@@ -44,6 +44,12 @@
 - Done: Added in-repo packaging plan, initialized status board, prepared issue sequence, and added issue drafts in `docs/packaging-issues.md`.
 - Next: File GitHub issues from drafts and backfill real issue numbers in the phase index.
 - Open questions: GitHub issue filing is pending environment/tooling (no `gh` CLI in this environment).
+
+### Phase 1 — Issue 1 (`resources.py` + `ICON_PATH`)
+- Last commit SHA touched: _to be filled after commit_
+- Done: Added `src/aside/resources.py` and switched `src/aside/ui/app.py` to `resource_path("aside-logo.png")`.
+- Next: Start Issue 2 (`setup_py2app.py` bootstrap + first launchable bundle).
+- Open questions: None.
 
 ## GitHub Issue Template (copy/paste)
 ```md

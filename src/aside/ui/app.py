@@ -14,7 +14,6 @@ import logging
 import os
 import sys
 import threading
-from pathlib import Path
 
 import customtkinter as ctk
 
@@ -30,13 +29,14 @@ from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
 from aside.engine.audio import AudioCapture
 from aside.engine.hotkeys import HotkeyManager, hotkeys_equal, parse_hotkey
 from aside.engine.transcriber import Transcriber
+from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.settings import build_settings
 from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
 
 logger = logging.getLogger(__name__)
 
-ICON_PATH = Path(__file__).resolve().parent.parent.parent.parent / "aside-logo.png"
+ICON_PATH = resource_path("aside-logo.png")
 LOCK_FILE = CONFIG_DIR / "aside.lock"
 
 
