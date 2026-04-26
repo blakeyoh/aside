@@ -35,8 +35,8 @@
     <key>LSUIElement</key>
     <true/>
 
-    <!-- Suppress the "unverified developer" nag on first launch -->
+    <!-- Minimum macOS for arm64 Apple Silicon support -->
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>11.0</string>
 </dict>
 </plist>

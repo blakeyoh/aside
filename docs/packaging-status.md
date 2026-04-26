@@ -2,8 +2,8 @@
 
 ## Current Status
 - **Phase:** 1
-- **In-flight:** Phase 1 complete — py2app bootstrap, bundled model path, dylib audit hooks, and build script added
-- **Branch:** `ai/plan-macos-packaging-mojG0`
+- **In-flight:** Phase 1 complete — code review fixes applied, entitlements.plist added, shell Aside.app removed
+- **Branch:** `pyinstaller-and-more`
 - **Last updated:** 2026-04-26
 
 ## Decisions Log
@@ -57,6 +57,12 @@
 - Next: Start Phase 2 Issue 6 (permission detection helpers).
 - Open questions: Native dylib closure still requires validation on a clean macOS machine using built artifact and `otool`.
 
+### Phase 1 — Code review fixes + remaining deliverables
+- Last commit SHA touched: _to be filled after commit_
+- Done: Fixed `setup_py2app.py` (removed `site_packages`, invalid `arch`, moved model dir to `resources`, added `name="Aside"`); pinned model revision in `build_app.sh`; fixed `Info.plist` `LSMinimumSystemVersion` to `11.0`; updated `transcriber._resolve_model_source` to match new bundle path; added `entitlements.plist`; removed committed `Aside.app/` shell launcher.
+- Next: Start Phase 2 Issue 6 (permission detection helpers).
+- Open questions: `MODEL_REVISION` in `build_app.sh` is set to `"main"` — replace with a pinned commit SHA before tagging a release (`git ls-remote https://huggingface.co/Systran/faster-whisper-base main`). Native dylib closure still requires validation on a clean macOS machine.
+
 ## GitHub Issue Template (copy/paste)
 ```md
 ## Phase
@@ -81,7 +87,7 @@
 <links to relevant sections of docs/packaging-plan.md>
 
 ## Handoff prompt
-Use branch `ai/plan-macos-packaging-mojG0`.
+Use branch `pyinstaller-and-more`.
 Read `docs/packaging-plan.md` and `docs/packaging-status.md` first.
 Continue issue #<N>; update status board before stopping.
 ```

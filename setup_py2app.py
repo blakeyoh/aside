@@ -13,13 +13,11 @@ APP = ["src/aside/__main__.py"]
 MODEL_DIR = Path("vendor/models/faster-whisper-base")
 
 DATA_FILES = ["aside-logo.png"]
-if MODEL_DIR.exists():
-    # Keep model inside app resources under models/faster-whisper-base
-    DATA_FILES.append(("models", [str(MODEL_DIR)]))
 
 OPTIONS = {
     "iconfile": "AppIcon.icns",
     "plist": "Info.plist",
+    "codesign_entitlements": "entitlements.plist",
     "packages": [
         "aside",
         "faster_whisper",
@@ -33,12 +31,13 @@ OPTIONS = {
     "argv_emulation": False,
     # ctranslate2/native libs are brittle under strip
     "strip": False,
-    # py2app should pull from the active environment site-packages
-    "site_packages": True,
-    "arch": "arm64",
 }
 
+if MODEL_DIR.exists():
+    OPTIONS["resources"] = [str(MODEL_DIR)]
+
 setup(
+    name="Aside",
     app=APP,
     data_files=DATA_FILES,
     options={"py2app": OPTIONS},

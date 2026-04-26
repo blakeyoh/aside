@@ -7,6 +7,11 @@ set -euo pipefail
 #   scripts/build_app.sh dev      # py2app alias mode (-A)
 #   scripts/build_app.sh release  # full bundle build
 
+# Pin to a specific HuggingFace commit for reproducible builds.
+# To update: git ls-remote https://huggingface.co/Systran/faster-whisper-base main
+# Replace "main" with the full commit SHA before tagging a release.
+MODEL_REVISION="main"
+
 MODE="${1:-release}"
 
 if [[ "$MODE" != "dev" && "$MODE" != "release" ]]; then
@@ -28,11 +33,13 @@ echo "==> Cleaning old build artifacts"
 rm -rf build dist
 
 echo "==> Prefetching Systran/faster-whisper-base model into vendor/"
-python - <<'PY'
+python - "$MODEL_REVISION" <<'PY'
+import sys
 from huggingface_hub import snapshot_download
 
 snapshot_download(
     repo_id="Systran/faster-whisper-base",
+    revision=sys.argv[1],
     local_dir="vendor/models/faster-whisper-base",
     local_dir_use_symlinks=False,
 )

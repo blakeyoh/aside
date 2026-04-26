@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 def _resolve_model_source(model_size: str) -> str:
     """Prefer bundled model resources when present; otherwise use model name."""
-    bundled = resource_path(f"models/faster-whisper-{model_size}")
+    bundled = resource_path(f"faster-whisper-{model_size}")
     if bundled.exists():
         return str(bundled)
     return model_size
