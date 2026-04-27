@@ -44,6 +44,15 @@ To stop the discover-fix-cycle pattern from repeating, four proactive guards wer
 
 If any of these surface in the next CI run, the diagnostics above should make the fix one-shot rather than a chain.
 
+### 2026-04-27 (d) — `install_requires is no longer supported`, root-caused
+Third build-smoke run got past the import preflight, downloaded the model, and then died inside py2app with `error: install_requires is no longer supported`. This was the same error the original local smoke run hit, and my first guess (setuptools ≥80 removed `install_requires`) was wrong — the wheel deprecation warning in the new log proves setuptools is < 70.1 in the venv.
+
+**Real root cause** (confirmed by reading py2app 0.28.10 source on GitHub): py2app's `build_app.py` raises `DistutilsOptionError("install_requires is no longer supported")` if **any** `install_requires` attribute exists on the distribution. We do not set it directly. But modern setuptools auto-loads `pyproject.toml` from the cwd and populates `install_requires` from `[project] dependencies`. py2app sees that auto-populated value and aborts.
+
+**Fix:** subclass py2app's command class in `setup_py2app.py`. The override clears `install_requires` (plus `setup_requires` / `tests_require` for safety) on the distribution before calling `super().finalize_options()`. The runtime install is unaffected — `pip install -e .` already happened in `setup.sh`, so the deps are present in the venv. We're only hiding the metadata from py2app's check.
+
+This is a permanent fix for as long as py2app 0.28 is the latest release.
+
 ### Still requires human-on-Mac validation
 - `scripts/build_app.sh release` (full bundle, not alias) actually produces a launchable `dist/Aside.app` on a clean machine and the build-smoke CI passes.
 - The packaged app finds the bundled Whisper model from `Aside.app/Contents/Resources/faster-whisper-base/` (resource path bundling).
