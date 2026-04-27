@@ -7,6 +7,8 @@ on:
 jobs:
   release:
     runs-on: macos-14  # Apple Silicon — matches arm64-only build target
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4

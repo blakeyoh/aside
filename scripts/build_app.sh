@@ -126,7 +126,6 @@ snapshot_download(
     repo_id="Systran/faster-whisper-base",
     revision=sys.argv[1],
     local_dir="vendor/models/faster-whisper-base",
-    local_dir_use_symlinks=False,
 )
 print("Model snapshot ready at vendor/models/faster-whisper-base")
 PY

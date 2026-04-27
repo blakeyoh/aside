@@ -53,6 +53,7 @@ OPTIONS = {
         "huggingface_hub",
         "customtkinter",
         "PIL",
+        "AVFoundation",
     ],
     # sounddevice / numpy are explicit Python modules; the CFFI shim
     # `_sounddevice` is *not* a Python module (it's a dlopen'd dylib loaded
