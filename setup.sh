@@ -117,9 +117,11 @@ echo "✅  Aside package installed (editable)"
 
 # Install the build toolchain (py2app + huggingface_hub) so that
 # scripts/build_app.sh works without manual surgery on the venv.
-echo "Installing build toolchain (py2app, huggingface_hub)…"
-pip install --quiet "py2app==0.28.10" "huggingface_hub>=0.20"
-echo "✅  Build toolchain installed"
+# pytest is included so PF-4 in docs/smoke-test-plan.md and the build-smoke
+# CI workflow can run the unit suite without a separate install step.
+echo "Installing build + dev toolchain (py2app, huggingface_hub, pytest)…"
+pip install --quiet "py2app==0.28.10" "huggingface_hub>=0.20" "pytest>=8"
+echo "✅  Build + dev toolchain installed"
 
 # ── Config directory ──────────────────────────────────────────────────────────
 ASIDE_DIR="$HOME/.aside"

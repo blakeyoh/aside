@@ -32,6 +32,18 @@ jobs:
           rm -rf .venv ~/.aside
           ./setup.sh
 
+      - name: Diagnostic — venv contents
+        if: always()
+        run: |
+          if [ -d .venv ]; then
+            source .venv/bin/activate
+            python --version
+            python -c "import sys; print('executable:', sys.executable)"
+            pip list
+          else
+            echo "(no .venv produced — setup.sh likely failed before venv creation)"
+          fi
+
       - name: Run unit tests
         run: |
           source .venv/bin/activate
@@ -50,14 +62,30 @@ jobs:
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
             dist/Aside.app/Contents/Info.plist
 
-      - name: Audit native dylib closure for ctranslate2
+      - name: Diagnostic — bundle layout
+        if: always()
         run: |
-          # Sanity-check the brittle native deps. The bundle ships
-          # ctranslate2 / sounddevice; if linkage is broken, we want to
-          # know here, not from a beta tester.
+          if [ -d dist/Aside.app ]; then
+            echo "── Top-level Contents ──"
+            ls -la dist/Aside.app/Contents/
+            echo "── Resources ──"
+            ls -la dist/Aside.app/Contents/Resources/ 2>/dev/null | head -40 || true
+          else
+            echo "(no dist/Aside.app produced)"
+          fi
+
+      - name: Audit native dylib closure for ctranslate2
+        if: always()
+        run: |
+          # Sanity-check the brittle native deps. Alias-mode builds (-A) ship
+          # symlinks rather than copies, so absence of these files is not an
+          # error here — we just record what we find for debugging.
           set +e
           for ext in dist/Aside.app/Contents/Resources/lib/python*/ctranslate2/_ext*.so \
                     dist/Aside.app/Contents/Resources/lib/python*/sounddevice*.so; do
-            [ -f "$ext" ] && otool -L "$ext"
+            if [ -f "$ext" ]; then
+              echo "── $ext ──"
+              otool -L "$ext"
+            fi
           done
           true

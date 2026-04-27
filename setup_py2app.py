@@ -29,7 +29,10 @@ OPTIONS = {
         "customtkinter",
         "PIL",
     ],
-    "includes": ["sounddevice", "_sounddevice", "numpy"],
+    # sounddevice / numpy are explicit Python modules; the CFFI shim
+    # `_sounddevice` is *not* a Python module (it's a dlopen'd dylib loaded
+    # by sounddevice itself), so listing it under `includes` would fail.
+    "includes": ["sounddevice", "numpy"],
     "argv_emulation": False,
     # ctranslate2/native libs are brittle under strip
     "strip": False,

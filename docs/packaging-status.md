@@ -27,6 +27,23 @@ First green-field run of the new gate failed with `customtkinter (missing)` duri
 
 **Fix:** install `python-tk@3.13` in `setup.sh`, the build-smoke workflow, and the release workflow. `setup.sh` also performs an `import tkinter` smoke check immediately after venv activation so this fails with a clear actionable message instead of a vague "customtkinter missing" line many steps later.
 
+### 2026-04-27 (c) — pytest gap + proactive guards to break the cascade pattern
+Second build-smoke run failed at `python -m pytest tests/`: pytest was not installed in the venv. `setup.sh` only installed runtime deps; the smoke-test plan and the CI both assume pytest is present. Fix: install `pytest>=8` alongside the build toolchain in `setup.sh`.
+
+To stop the discover-fix-cycle pattern from repeating, four proactive guards were added in the same commit:
+
+1. **`scripts/build_app.sh` import preflight** — before invoking py2app, the script imports every package listed in `setup_py2app.py`'s `packages` and `includes`. If any fails, output is one diagnostic block listing every broken module + which Homebrew/pip package supplies it. This converts "py2app exits with a 200-line traceback after 30 seconds" into "build_app.sh exits in 1 second telling you exactly what to install."
+2. **`setup_py2app.py` cleanup** — removed the speculative `_sounddevice` from `includes` (CFFI loads it as a dlopen dylib, not a Python module — listing it would have been the next failure under release mode).
+3. **`build-smoke.yml` diagnostics** — added `pip list`, bundle layout dump, and `otool` audit steps that all run with `if: always()` so even when the workflow fails, the next debug pass has the data it needs.
+4. **Resilient diagnostic step** — the `pip list` diagnostic checks for `.venv/` existence first so a missed venv doesn't cause a meta-failure that hides the real one.
+
+**Known unknowns still in CI's lap (not predictable from a Linux sandbox):**
+- Does py2app 0.28.10 + Python 3.13 + setuptools<70 actually complete a `dev` (alias) build to produce `dist/Aside.app`? (The combination is now pinned and should work, but no one has run it yet.)
+- Does py2app handle `customtkinter`'s assets folder (theme JSONs, icons) without explicit `iconfile`/`include_files` directives?
+- Does the alias bundle's `dist/Aside.app/Contents/MacOS/Aside` exist as expected? py2app's alias mode produces a stub launcher — the verify-bundle step will tell us.
+
+If any of these surface in the next CI run, the diagnostics above should make the fix one-shot rather than a chain.
+
 ### Still requires human-on-Mac validation
 - `scripts/build_app.sh release` (full bundle, not alias) actually produces a launchable `dist/Aside.app` on a clean machine and the build-smoke CI passes.
 - The packaged app finds the bundled Whisper model from `Aside.app/Contents/Resources/faster-whisper-base/` (resource path bundling).

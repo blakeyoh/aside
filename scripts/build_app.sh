@@ -75,6 +75,45 @@ if ! python -c "import huggingface_hub, py2app" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Verify every package py2app will be asked to bundle is importable in this
+# venv, BEFORE py2app starts churning. py2app failures are slow, noisy, and
+# rarely point at the actual missing dep. Catching it here means one clear
+# error line instead of a 200-line traceback.
+echo "==> Verifying py2app input modules are importable"
+python - <<'PY'
+import sys
+mods = [
+    ("aside",          "aside"),
+    ("faster_whisper", "faster-whisper"),
+    ("ctranslate2",    "ctranslate2"),
+    ("tokenizers",     "tokenizers"),
+    ("huggingface_hub","huggingface_hub"),
+    ("customtkinter",  "customtkinter"),
+    ("PIL",            "pillow"),
+    ("sounddevice",    "sounddevice"),
+    ("numpy",          "numpy"),
+    ("Quartz",         "pyobjc-framework-Quartz"),
+    ("AppKit",         "pyobjc-framework-Cocoa"),
+    ("AVFoundation",   "pyobjc-framework-AVFoundation"),
+    ("tkinter",        "python-tk@3.13 (Homebrew)"),
+]
+failed = []
+for module, package in mods:
+    try:
+        __import__(module)
+    except Exception as exc:
+        failed.append((module, package, exc))
+if failed:
+    print("ERROR: py2app input modules failed to import:", file=sys.stderr)
+    for module, package, exc in failed:
+        print(f"  - {package}: import {module} failed: {exc}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Fix the venv (re-run ./setup.sh or pip install the missing package)", file=sys.stderr)
+    print("before invoking build_app.sh again.", file=sys.stderr)
+    sys.exit(1)
+print("All py2app input modules importable.")
+PY
+
 echo "==> Cleaning old build artifacts"
 rm -rf build dist .eggs
 
