@@ -12,7 +12,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Homebrew dependencies
-        run: brew install python@3.13 portaudio create-dmg
+        # python-tk@3.13 supplies _tkinter for Homebrew python@3.13.
+        run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
 
       - name: Set up Python environment
         run: |

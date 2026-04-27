@@ -22,6 +22,11 @@ There was no "fresh machine" gate before handoff. The previous status entries ma
 
 **Mitigation added:** `.github/workflows/build-smoke.yml` runs on every push and PR. It does `rm -rf .venv ~/.aside; ./setup.sh; pytest; scripts/build_app.sh dev` on a fresh `macos-14` runner, then verifies the produced `.app` bundle and `otool`-audits the brittle native extensions. This is the gate that should have existed since Phase 1.
 
+### 2026-04-27 (b) — build-smoke caught a 6th regression on first run
+First green-field run of the new gate failed with `customtkinter (missing)` during the `setup.sh` verification step. Root cause: Homebrew's `python@3.13` formula does **not** ship `_tkinter`; Tk bindings live in the separate `python-tk@3.13` formula. Customtkinter imports `tkinter` at module load, so without it every UI module on a fresh Mac would fail to import — even though local dev machines that had Tk installed for other reasons appeared to work.
+
+**Fix:** install `python-tk@3.13` in `setup.sh`, the build-smoke workflow, and the release workflow. `setup.sh` also performs an `import tkinter` smoke check immediately after venv activation so this fails with a clear actionable message instead of a vague "customtkinter missing" line many steps later.
+
 ### Still requires human-on-Mac validation
 - `scripts/build_app.sh release` (full bundle, not alias) actually produces a launchable `dist/Aside.app` on a clean machine and the build-smoke CI passes.
 - The packaged app finds the bundled Whisper model from `Aside.app/Contents/Resources/faster-whisper-base/` (resource path bundling).

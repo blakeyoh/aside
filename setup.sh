@@ -67,13 +67,16 @@ fi
 echo "✅  Homebrew"
 
 # ── System deps ───────────────────────────────────────────────────────────────
-for pkg in portaudio; do
+# python-tk@3.13 supplies _tkinter for Homebrew python@3.13 — without it,
+# `import customtkinter` fails. Homebrew's python@3.13 ships without Tk
+# bindings; they are packaged separately.
+for pkg in portaudio python-tk@3.13; do
     if ! brew list "$pkg" &>/dev/null 2>&1; then
         echo "Installing $pkg…"
         brew install "$pkg"
     fi
 done
-echo "✅  portaudio"
+echo "✅  portaudio + python-tk@3.13"
 
 # ── Python venv ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -86,6 +89,18 @@ if [ ! -d "$VENV" ]; then
 fi
 source "$VENV/bin/activate"
 echo "✅  Virtual environment"
+
+# Verify Tk is actually wired into this Python before we try to install
+# customtkinter / launch any UI. Homebrew's python@3.13 routinely ships
+# without _tkinter, in which case every UI import fails downstream with a
+# generic ImportError that's hard to trace back to here.
+if ! python3 -c "import tkinter" >/dev/null 2>&1; then
+    echo "❌  Python is missing the tkinter / _tkinter module."
+    echo "    Install the Homebrew Tk bindings and re-run setup:"
+    echo "      brew install python-tk@3.13"
+    exit 1
+fi
+echo "✅  tkinter available"
 
 # ── Python packages ───────────────────────────────────────────────────────────
 echo ""

@@ -21,7 +21,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Homebrew system deps
-        run: brew install python@3.13 portaudio
+        # python-tk@3.13 is required because Homebrew's python@3.13 does not
+        # ship _tkinter; without it `import customtkinter` fails at runtime.
+        run: brew install python@3.13 python-tk@3.13 portaudio
 
       - name: Run setup.sh on a clean checkout
         run: |
