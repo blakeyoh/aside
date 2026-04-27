@@ -44,6 +44,29 @@ To stop the discover-fix-cycle pattern from repeating, four proactive guards wer
 
 If any of these surface in the next CI run, the diagnostics above should make the fix one-shot rather than a chain.
 
+## Supported Python policy
+
+Aside is currently validated against **exactly one** Python minor version, declared in `setup.sh` as `SUPPORTED_PYTHONS=("3.13")`. The script:
+- Refuses to silently use any other version. If only an unsupported Python (e.g. 3.14) is installed, it auto-installs `python@${DEFAULT_PYTHON_VERSION}` via Homebrew rather than picking the unsupported one and failing later.
+- Derives the Tk formula (`python-tk@X.Y`) from the chosen interpreter at runtime, so a future bump never produces the silently-mismatched-Tk failure mode the reviewer caught.
+
+**Why an allow-list, not "any 3.X+":** the brittle dependencies in this stack (`faster-whisper`, `ctranslate2`, `tokenizers`, `py2app`) ship pre-built C/C++ wheels per Python minor version. New CPython releases routinely take weeks to months before all upstream wheels exist. Accepting any future Python version means a contributor on a 3.14-only Mac would discover a missing wheel halfway through `pip install -e .` instead of getting one clear "this Python is unsupported" line at the top of `setup.sh`.
+
+**To extend support to a new minor (e.g., 3.14):**
+1. Add `"3.14"` BEFORE the existing entries in `setup.sh`'s `SUPPORTED_PYTHONS` array.
+2. Update `python@3.13` / `python-tk@3.13` references in `.github/workflows/{build-smoke,release}.yml` to match (or run a parallel job to validate both).
+3. Push and let `build-smoke.yml` exercise the full install + py2app build on `macos-14`.
+4. Update `README.md` and the relevant smoke-test plan steps.
+
+### 2026-04-27 (e) — Tk formula tied to chosen Python (reviewer fix)
+PR review on the recovery branch flagged: `setup.sh` accepted any `python3` with minor ≥ 13 but hard-coded `python-tk@3.13`. On a 3.14-only machine the venv would be created with 3.14 and the `import tkinter` smoke check would then fail because the 3.13 Tk formula doesn't ship a binding for the 3.14 interpreter.
+
+**Fix:**
+1. Replaced the loose `MINOR -ge 13` check with an explicit `SUPPORTED_PYTHONS=("3.13")` allow-list and a `find_python()` helper.
+2. Tracked the chosen interpreter's `X.Y` in a `PYTHON_MINOR_VERSION` variable and used it to derive `TK_FORMULA="python-tk@${PYTHON_MINOR_VERSION}"`.
+3. Made the auto-install branch use the same default version, and made the `import tkinter` failure message cite the derived formula instead of the hard-coded one.
+4. Added cross-reference comments to `build-smoke.yml` and `release.yml` reminding maintainers to keep their `python@X.Y` / `python-tk@X.Y` in lockstep with `SUPPORTED_PYTHONS`.
+
 ### 2026-04-27 (d) — `install_requires is no longer supported`, root-caused
 Third build-smoke run got past the import preflight, downloaded the model, and then died inside py2app with `error: install_requires is no longer supported`. This was the same error the original local smoke run hit, and my first guess (setuptools ≥80 removed `install_requires`) was wrong — the wheel deprecation warning in the new log proves setuptools is < 70.1 in the venv.
 

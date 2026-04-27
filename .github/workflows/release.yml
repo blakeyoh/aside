@@ -13,6 +13,7 @@ jobs:
 
       - name: Install Homebrew dependencies
         # python-tk@3.13 supplies _tkinter for Homebrew python@3.13.
+        # Keep the version in lockstep with SUPPORTED_PYTHONS in setup.sh.
         run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
 
       - name: Set up Python environment

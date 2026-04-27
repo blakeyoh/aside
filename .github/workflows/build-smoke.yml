@@ -23,6 +23,7 @@ jobs:
       - name: Install Homebrew system deps
         # python-tk@3.13 is required because Homebrew's python@3.13 does not
         # ship _tkinter; without it `import customtkinter` fails at runtime.
+        # Keep the version in lockstep with SUPPORTED_PYTHONS in setup.sh.
         run: brew install python@3.13 python-tk@3.13 portaudio
 
       - name: Run setup.sh on a clean checkout
