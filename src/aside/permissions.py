@@ -54,20 +54,31 @@ def check_accessibility() -> PermissionStatus:
     return PermissionStatus.GRANTED if trusted else PermissionStatus.DENIED
 
 
+# IOKit constants from <IOKit/hid/IOHIDLib.h>:
+#   kIOHIDRequestTypeListenEvent = 1
+#   kIOHIDAccessTypeGranted = 0, Denied = 1, Unknown = 2
+# pyobjc does not ship a pyobjc-framework-IOKit subpackage, so we link
+# against the framework directly via ctypes to avoid an install-time dep
+# that fails resolution.
+_IOKIT_PATH = "/System/Library/Frameworks/IOKit.framework/IOKit"
+_IOHID_REQUEST_TYPE_LISTEN_EVENT = 1
+
+
 def check_input_monitoring() -> PermissionStatus:
     """Query IOHIDCheckAccess for keyboard listen-event access."""
     try:
-        from IOKit.hid import IOHIDCheckAccess, kIOHIDRequestTypeListenEvent
-        result = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent)
-        # 0=Granted, 1=Denied, 2=Unknown/NotDetermined, 3=ApprovedByConfig
-        if result in (0, 3):
-            return PermissionStatus.GRANTED
-        if result == 1:
-            return PermissionStatus.DENIED
-        return PermissionStatus.NOT_DETERMINED
+        lib = ctypes.CDLL(_IOKIT_PATH)
+        lib.IOHIDCheckAccess.restype = ctypes.c_uint32
+        lib.IOHIDCheckAccess.argtypes = [ctypes.c_uint32]
+        result = int(lib.IOHIDCheckAccess(_IOHID_REQUEST_TYPE_LISTEN_EVENT))
     except Exception:
         logger.debug("IOHIDCheckAccess unavailable; assuming input monitoring not determined")
         return PermissionStatus.NOT_DETERMINED
+    if result in (0, 3):
+        return PermissionStatus.GRANTED
+    if result == 1:
+        return PermissionStatus.DENIED
+    return PermissionStatus.NOT_DETERMINED
 
 
 _PANES = {

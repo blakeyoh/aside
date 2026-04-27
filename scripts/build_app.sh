@@ -52,8 +52,70 @@ if ! command -v python >/dev/null 2>&1; then
   exit 1
 fi
 
+# Preflight: verify the active python is the project venv with the build
+# toolchain installed. The user may have been bounced to system Python
+# (anaconda, /usr/bin/python3) which is missing huggingface_hub / py2app
+# and silently produces confusing failures hundreds of lines later.
+PYTHON_EXE="$(command -v python)"
+if [[ ! "$PYTHON_EXE" =~ \.venv/bin/python$ ]]; then
+  echo "ERROR: build_app.sh expects the project venv on PATH, got: $PYTHON_EXE"
+  echo ""
+  echo "Activate it first:"
+  echo "  source .venv/bin/activate"
+  echo ""
+  echo "If .venv is missing, run ./setup.sh first."
+  exit 1
+fi
+
+if ! python -c "import huggingface_hub, py2app" >/dev/null 2>&1; then
+  echo "ERROR: build toolchain missing from venv (huggingface_hub or py2app)."
+  echo ""
+  echo "Re-run ./setup.sh to install the toolchain, or manually:"
+  echo "  pip install 'setuptools<70' wheel 'py2app==0.28.10' 'huggingface_hub>=0.20'"
+  exit 1
+fi
+
+# Verify every package py2app will be asked to bundle is importable in this
+# venv, BEFORE py2app starts churning. py2app failures are slow, noisy, and
+# rarely point at the actual missing dep. Catching it here means one clear
+# error line instead of a 200-line traceback.
+echo "==> Verifying py2app input modules are importable"
+python - <<'PY'
+import sys
+mods = [
+    ("aside",          "aside"),
+    ("faster_whisper", "faster-whisper"),
+    ("ctranslate2",    "ctranslate2"),
+    ("tokenizers",     "tokenizers"),
+    ("huggingface_hub","huggingface_hub"),
+    ("customtkinter",  "customtkinter"),
+    ("PIL",            "pillow"),
+    ("sounddevice",    "sounddevice"),
+    ("numpy",          "numpy"),
+    ("Quartz",         "pyobjc-framework-Quartz"),
+    ("AppKit",         "pyobjc-framework-Cocoa"),
+    ("AVFoundation",   "pyobjc-framework-AVFoundation"),
+    ("tkinter",        "python-tk@3.13 (Homebrew)"),
+]
+failed = []
+for module, package in mods:
+    try:
+        __import__(module)
+    except Exception as exc:
+        failed.append((module, package, exc))
+if failed:
+    print("ERROR: py2app input modules failed to import:", file=sys.stderr)
+    for module, package, exc in failed:
+        print(f"  - {package}: import {module} failed: {exc}", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Fix the venv (re-run ./setup.sh or pip install the missing package)", file=sys.stderr)
+    print("before invoking build_app.sh again.", file=sys.stderr)
+    sys.exit(1)
+print("All py2app input modules importable.")
+PY
+
 echo "==> Cleaning old build artifacts"
-rm -rf build dist
+rm -rf build dist .eggs
 
 echo "==> Prefetching Systran/faster-whisper-base model into vendor/"
 python - "$MODEL_REVISION" <<'PY'

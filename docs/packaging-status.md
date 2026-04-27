@@ -1,10 +1,85 @@
 # Packaging Status Board
 
 ## Current Status
-- **Phase:** 3 (smoke-test prep)
-- **In-flight:** Smoke-test preparation complete — version bumped to 1.1.0, onboarding completion gated on granted permissions, MODEL_REVISION enforced as 40-char SHA in release mode, CHANGELOG updated
+- **Phase:** 3 (smoke-test recovery)
+- **In-flight:** First on-Mac smoke attempt failed in 5 distinct ways. Recovery commit pins the toolchain, removes a non-existent dependency, drops py2app options that 0.28 does not support, and adds a fresh-Mac CI smoke gate so this regression class fails in CI rather than on a tester's machine.
 - **Branch:** `claude/prepare-smoke-test-9M52G`
-- **Last updated:** 2026-04-26
+- **Last updated:** 2026-04-27
+
+## Failed Smoke (2026-04-27) — Postmortem
+First attempt to install on a clean Apple Silicon machine in developer mode failed at five points. Each is now addressed:
+
+| # | Failure | Root cause | Fix |
+|---|---|---|---|
+| 1 | `pip install -e .` aborted: `No matching distribution found for pyobjc-framework-IOKit>=10.3` | `pyobjc-framework-IOKit` is **not** a real PyPI package. The dependency was added speculatively for `IOHIDCheckAccess` and never validated against PyPI. | Removed the dep from `pyproject.toml`. `permissions.check_input_monitoring` now links `IOKit.framework` directly via `ctypes` (parallel to the existing `AXIsProcessTrusted` ctypes fallback). |
+| 2 | `python3` resolved to anaconda 3.12, not the venv. py2app's `setup_requires` egg got built for 3.12 and exploded under 3.13 (`No module named 'modulegraph'`). | `setup_py2app.py` used the deprecated `setup_requires=["py2app>=0.28"]` `fetch_build_eggs` path. `build_app.sh` did not verify the active Python was the venv. | Removed `setup_requires` from `setup_py2app.py`. `build_app.sh` now refuses to run if `python` does not resolve to `<repo>/.venv/bin/python` and pre-checks that `huggingface_hub` and `py2app` are importable. |
+| 3 | `configuration error: project.license must be valid exactly by one definition` | `pyproject.toml` used the SPDX string form `license = "Apache-2.0"`, which requires `setuptools>=77`. Older setuptools rejected it. | Reverted to `license = { text = "Apache-2.0" }` table form, accepted by all setuptools versions in our supported range. |
+| 4 | `error: error in setup script: command 'py2app' has no such option 'codesign_entitlements'` | py2app 0.28 (the latest released version) does not support the `codesign_entitlements` option. | Removed the option from `setup_py2app.py`. The entitlements are still applied via `codesign --entitlements entitlements.plist …` in `package_dmg.sh` and the release workflow. |
+| 5 | `running py2app … error: install_requires is no longer supported` | setuptools 80+ removed the legacy `install_requires` keyword in `setup()`, which py2app 0.28 internally relies on. | Pinned `setuptools<70` in both `setup.sh` and the release workflow. Also pinned `py2app==0.28.10` (the exact tested version) and pre-installed `huggingface_hub` so users are not asked to do dependency surgery. |
+
+### Process gap that allowed all of this through
+There was no "fresh machine" gate before handoff. The previous status entries marked Phase 1 / 2 / 3 as **done** without a clean-VM build ever running end to end.
+
+**Mitigation added:** `.github/workflows/build-smoke.yml` runs on every push and PR. It does `rm -rf .venv ~/.aside; ./setup.sh; pytest; scripts/build_app.sh dev` on a fresh `macos-14` runner, then verifies the produced `.app` bundle and `otool`-audits the brittle native extensions. This is the gate that should have existed since Phase 1.
+
+### 2026-04-27 (b) — build-smoke caught a 6th regression on first run
+First green-field run of the new gate failed with `customtkinter (missing)` during the `setup.sh` verification step. Root cause: Homebrew's `python@3.13` formula does **not** ship `_tkinter`; Tk bindings live in the separate `python-tk@3.13` formula. Customtkinter imports `tkinter` at module load, so without it every UI module on a fresh Mac would fail to import — even though local dev machines that had Tk installed for other reasons appeared to work.
+
+**Fix:** install `python-tk@3.13` in `setup.sh`, the build-smoke workflow, and the release workflow. `setup.sh` also performs an `import tkinter` smoke check immediately after venv activation so this fails with a clear actionable message instead of a vague "customtkinter missing" line many steps later.
+
+### 2026-04-27 (c) — pytest gap + proactive guards to break the cascade pattern
+Second build-smoke run failed at `python -m pytest tests/`: pytest was not installed in the venv. `setup.sh` only installed runtime deps; the smoke-test plan and the CI both assume pytest is present. Fix: install `pytest>=8` alongside the build toolchain in `setup.sh`.
+
+To stop the discover-fix-cycle pattern from repeating, four proactive guards were added in the same commit:
+
+1. **`scripts/build_app.sh` import preflight** — before invoking py2app, the script imports every package listed in `setup_py2app.py`'s `packages` and `includes`. If any fails, output is one diagnostic block listing every broken module + which Homebrew/pip package supplies it. This converts "py2app exits with a 200-line traceback after 30 seconds" into "build_app.sh exits in 1 second telling you exactly what to install."
+2. **`setup_py2app.py` cleanup** — removed the speculative `_sounddevice` from `includes` (CFFI loads it as a dlopen dylib, not a Python module — listing it would have been the next failure under release mode).
+3. **`build-smoke.yml` diagnostics** — added `pip list`, bundle layout dump, and `otool` audit steps that all run with `if: always()` so even when the workflow fails, the next debug pass has the data it needs.
+4. **Resilient diagnostic step** — the `pip list` diagnostic checks for `.venv/` existence first so a missed venv doesn't cause a meta-failure that hides the real one.
+
+**Known unknowns still in CI's lap (not predictable from a Linux sandbox):**
+- Does py2app 0.28.10 + Python 3.13 + setuptools<70 actually complete a `dev` (alias) build to produce `dist/Aside.app`? (The combination is now pinned and should work, but no one has run it yet.)
+- Does py2app handle `customtkinter`'s assets folder (theme JSONs, icons) without explicit `iconfile`/`include_files` directives?
+- Does the alias bundle's `dist/Aside.app/Contents/MacOS/Aside` exist as expected? py2app's alias mode produces a stub launcher — the verify-bundle step will tell us.
+
+If any of these surface in the next CI run, the diagnostics above should make the fix one-shot rather than a chain.
+
+## Supported Python policy
+
+Aside is currently validated against **exactly one** Python minor version, declared in `setup.sh` as `SUPPORTED_PYTHONS=("3.13")`. The script:
+- Refuses to silently use any other version. If only an unsupported Python (e.g. 3.14) is installed, it auto-installs `python@${DEFAULT_PYTHON_VERSION}` via Homebrew rather than picking the unsupported one and failing later.
+- Derives the Tk formula (`python-tk@X.Y`) from the chosen interpreter at runtime, so a future bump never produces the silently-mismatched-Tk failure mode the reviewer caught.
+
+**Why an allow-list, not "any 3.X+":** the brittle dependencies in this stack (`faster-whisper`, `ctranslate2`, `tokenizers`, `py2app`) ship pre-built C/C++ wheels per Python minor version. New CPython releases routinely take weeks to months before all upstream wheels exist. Accepting any future Python version means a contributor on a 3.14-only Mac would discover a missing wheel halfway through `pip install -e .` instead of getting one clear "this Python is unsupported" line at the top of `setup.sh`.
+
+**To extend support to a new minor (e.g., 3.14):**
+1. Add `"3.14"` BEFORE the existing entries in `setup.sh`'s `SUPPORTED_PYTHONS` array.
+2. Update `python@3.13` / `python-tk@3.13` references in `.github/workflows/{build-smoke,release}.yml` to match (or run a parallel job to validate both).
+3. Push and let `build-smoke.yml` exercise the full install + py2app build on `macos-14`.
+4. Update `README.md` and the relevant smoke-test plan steps.
+
+### 2026-04-27 (e) — Tk formula tied to chosen Python (reviewer fix)
+PR review on the recovery branch flagged: `setup.sh` accepted any `python3` with minor ≥ 13 but hard-coded `python-tk@3.13`. On a 3.14-only machine the venv would be created with 3.14 and the `import tkinter` smoke check would then fail because the 3.13 Tk formula doesn't ship a binding for the 3.14 interpreter.
+
+**Fix:**
+1. Replaced the loose `MINOR -ge 13` check with an explicit `SUPPORTED_PYTHONS=("3.13")` allow-list and a `find_python()` helper.
+2. Tracked the chosen interpreter's `X.Y` in a `PYTHON_MINOR_VERSION` variable and used it to derive `TK_FORMULA="python-tk@${PYTHON_MINOR_VERSION}"`.
+3. Made the auto-install branch use the same default version, and made the `import tkinter` failure message cite the derived formula instead of the hard-coded one.
+4. Added cross-reference comments to `build-smoke.yml` and `release.yml` reminding maintainers to keep their `python@X.Y` / `python-tk@X.Y` in lockstep with `SUPPORTED_PYTHONS`.
+
+### 2026-04-27 (d) — `install_requires is no longer supported`, root-caused
+Third build-smoke run got past the import preflight, downloaded the model, and then died inside py2app with `error: install_requires is no longer supported`. This was the same error the original local smoke run hit, and my first guess (setuptools ≥80 removed `install_requires`) was wrong — the wheel deprecation warning in the new log proves setuptools is < 70.1 in the venv.
+
+**Real root cause** (confirmed by reading py2app 0.28.10 source on GitHub): py2app's `build_app.py` raises `DistutilsOptionError("install_requires is no longer supported")` if **any** `install_requires` attribute exists on the distribution. We do not set it directly. But modern setuptools auto-loads `pyproject.toml` from the cwd and populates `install_requires` from `[project] dependencies`. py2app sees that auto-populated value and aborts.
+
+**Fix:** subclass py2app's command class in `setup_py2app.py`. The override clears `install_requires` (plus `setup_requires` / `tests_require` for safety) on the distribution before calling `super().finalize_options()`. The runtime install is unaffected — `pip install -e .` already happened in `setup.sh`, so the deps are present in the venv. We're only hiding the metadata from py2app's check.
+
+This is a permanent fix for as long as py2app 0.28 is the latest release.
+
+### Still requires human-on-Mac validation
+- `scripts/build_app.sh release` (full bundle, not alias) actually produces a launchable `dist/Aside.app` on a clean machine and the build-smoke CI passes.
+- The packaged app finds the bundled Whisper model from `Aside.app/Contents/Resources/faster-whisper-base/` (resource path bundling).
+- Onboarding window appears on first launch from `/Applications` and the three permission rows turn green after grants.
 
 ## Decisions Log
 - 2026-04-26 — Use py2app for v1.1.0 packaging — Native macOS fit for menu-bar Python app; minimizes path refactor surface.

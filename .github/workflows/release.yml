@@ -12,13 +12,20 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Homebrew dependencies
-        run: brew install python@3.13 portaudio create-dmg
+        # python-tk@3.13 supplies _tkinter for Homebrew python@3.13.
+        # Keep the version in lockstep with SUPPORTED_PYTHONS in setup.sh.
+        run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
 
       - name: Set up Python environment
         run: |
           python3.13 -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install py2app huggingface_hub
+          # Pin setuptools < 70 so py2app 0.28 (the latest release) can run.
+          # Newer setuptools removed the legacy `install_requires` keyword
+          # that py2app's build_app reads; the build aborts with
+          # `error: install_requires is no longer supported` without this pin.
+          .venv/bin/pip install "setuptools<70" wheel
+          .venv/bin/pip install "py2app==0.28.10" "huggingface_hub>=0.20"
           .venv/bin/pip install -e .
           # Make the venv's python the default for all subsequent steps
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
