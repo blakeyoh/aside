@@ -12,7 +12,6 @@ Threading model:
 import fcntl
 import logging
 import os
-import queue
 import sys
 import threading
 
@@ -40,8 +39,6 @@ logger = logging.getLogger(__name__)
 
 ICON_PATH = resource_path("aside-logo.png")
 LOCK_FILE = CONFIG_DIR / "aside.lock"
-UI_ACTION_SHOW_SETTINGS = "show_settings"
-UI_ACTION_SHOW_ONBOARDING = "show_onboarding"
 
 
 def _acquire_lock():
@@ -100,7 +97,6 @@ class App(ctk.CTk):
         self._toggle_active = False  # toggle-hotkey recording mode
         self._hotkey_poll_failed = False
         self._is_quitting = False
-        self._ui_actions: queue.Queue[str] = queue.Queue()
 
         # ── Status bar (top of window) ───────────────────────────────────
         status_frame = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
@@ -175,7 +171,6 @@ class App(ctk.CTk):
         # ── Kick off engine ─────────────────────────────────────────────
         self.after_idle(self._start_engine)
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
-        self._ui_action_poll_job = self.after(POLL_MS, self._poll_ui_actions)
         if not self.cfg.get("first_run_complete"):
             self.after(200, self._show_onboarding)
         elif os.environ.get("ASIDE_SHOW_SETTINGS_ON_LAUNCH") == "1":
@@ -205,28 +200,6 @@ class App(ctk.CTk):
                 self._show_status_message("Hotkey error; check logs")
             self._hotkey_poll_failed = True
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
-
-    def _poll_ui_actions(self):
-        """Drain thread-safe UI action queue on the Tk event loop."""
-        try:
-            while True:
-                try:
-                    action = self._ui_actions.get_nowait()
-                except queue.Empty:
-                    break
-
-                try:
-                    if action == UI_ACTION_SHOW_SETTINGS:
-                        self._show_settings()
-                    elif action == UI_ACTION_SHOW_ONBOARDING:
-                        self._show_onboarding()
-                    else:
-                        logger.warning("Unknown UI action token: %s", action)
-                except Exception:
-                    logger.exception("UI action handler failed for token: %s", action)
-        finally:
-            if not self._is_quitting:
-                self._ui_action_poll_job = self.after(POLL_MS, self._poll_ui_actions)
 
     # ── Hotkey events ────────────────────────────────────────────────────
 
@@ -453,12 +426,12 @@ class App(ctk.CTk):
     # ── Menu bar / window management ─────────────────────────────────────
 
     def _request_show_settings(self):
-        """Enqueue settings window display request for the Tk thread."""
-        self._ui_actions.put(UI_ACTION_SHOW_SETTINGS)
+        """Schedule settings window display on the Tk event loop."""
+        self.after(0, self._show_settings)
 
     def _request_show_onboarding(self):
-        """Enqueue onboarding window display request for the Tk thread."""
-        self._ui_actions.put(UI_ACTION_SHOW_ONBOARDING)
+        """Schedule onboarding window display on the Tk event loop."""
+        self.after(0, self._show_onboarding)
 
     def _show_onboarding(self):
         """Show (or re-show) the permissions onboarding window."""
@@ -506,7 +479,7 @@ class App(ctk.CTk):
     def _on_quit(self):
         """Clean shutdown."""
         self._is_quitting = True
-        for job_attr in ("_poll_job", "_ui_action_poll_job"):
+        for job_attr in ("_poll_job",):
             job = getattr(self, job_attr, None)
             if job is not None:
                 try:

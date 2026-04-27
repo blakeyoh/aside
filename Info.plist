@@ -31,9 +31,9 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Aside needs microphone access to transcribe your speech locally.</string>
 
-    <!-- Run as a menu bar app (no Dock icon) -->
+    <!-- Run as a regular app (show Dock icon) -->
     <key>LSUIElement</key>
-    <true/>
+    <false/>
 
     <!-- Minimum macOS for arm64 Apple Silicon support -->
     <key>LSMinimumSystemVersion</key>

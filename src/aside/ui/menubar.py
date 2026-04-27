@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 try:
     from AppKit import (
-        NSApplication, NSApplicationActivationPolicyAccessory,
+        NSApplication, NSApplicationActivationPolicyRegular,
         NSObject, NSAlert, NSSound,
         NSStatusBar, NSVariableStatusItemLength,
         NSMenu, NSMenuItem,
@@ -55,11 +55,35 @@ if APPKIT_AVAILABLE:
 
         def showWindow_(self, sender):
             if self._show_cb:
-                self._show_cb()
+                try:
+                    self._show_cb()
+                except Exception:
+                    logger.exception("Failed to run menu callback: showWindow")
+                    self._show_callback_failure_alert(
+                        "Unable to open settings.",
+                        "Please check logs for details."
+                    )
 
         def showPermissions_(self, sender):
             if self._permissions_cb:
-                self._permissions_cb()
+                try:
+                    self._permissions_cb()
+                except Exception:
+                    logger.exception("Failed to run menu callback: showPermissions")
+                    self._show_callback_failure_alert(
+                        "Unable to open permissions.",
+                        "Please check logs for details."
+                    )
+
+        @staticmethod
+        def _show_callback_failure_alert(message: str, info: str) -> None:
+            try:
+                alert = NSAlert.alloc().init()
+                alert.setMessageText_(message)
+                alert.setInformativeText_(info)
+                alert.runModal()
+            except Exception:
+                logger.exception("Failed to show callback failure alert")
 
         def aboutApp_(self, sender):
             try:
@@ -97,7 +121,7 @@ class MenuBar:
             return
 
         NSApplication.sharedApplication().setActivationPolicy_(
-            NSApplicationActivationPolicyAccessory
+            NSApplicationActivationPolicyRegular
         )
 
         delegate = _MenuDelegate.alloc().init()
