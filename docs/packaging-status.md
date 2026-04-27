@@ -1,10 +1,31 @@
 # Packaging Status Board
 
 ## Current Status
-- **Phase:** 3 (smoke-test prep)
-- **In-flight:** Smoke-test preparation complete — version bumped to 1.1.0, onboarding completion gated on granted permissions, MODEL_REVISION enforced as 40-char SHA in release mode, CHANGELOG updated
+- **Phase:** 3 (smoke-test recovery)
+- **In-flight:** First on-Mac smoke attempt failed in 5 distinct ways. Recovery commit pins the toolchain, removes a non-existent dependency, drops py2app options that 0.28 does not support, and adds a fresh-Mac CI smoke gate so this regression class fails in CI rather than on a tester's machine.
 - **Branch:** `claude/prepare-smoke-test-9M52G`
-- **Last updated:** 2026-04-26
+- **Last updated:** 2026-04-27
+
+## Failed Smoke (2026-04-27) — Postmortem
+First attempt to install on a clean Apple Silicon machine in developer mode failed at five points. Each is now addressed:
+
+| # | Failure | Root cause | Fix |
+|---|---|---|---|
+| 1 | `pip install -e .` aborted: `No matching distribution found for pyobjc-framework-IOKit>=10.3` | `pyobjc-framework-IOKit` is **not** a real PyPI package. The dependency was added speculatively for `IOHIDCheckAccess` and never validated against PyPI. | Removed the dep from `pyproject.toml`. `permissions.check_input_monitoring` now links `IOKit.framework` directly via `ctypes` (parallel to the existing `AXIsProcessTrusted` ctypes fallback). |
+| 2 | `python3` resolved to anaconda 3.12, not the venv. py2app's `setup_requires` egg got built for 3.12 and exploded under 3.13 (`No module named 'modulegraph'`). | `setup_py2app.py` used the deprecated `setup_requires=["py2app>=0.28"]` `fetch_build_eggs` path. `build_app.sh` did not verify the active Python was the venv. | Removed `setup_requires` from `setup_py2app.py`. `build_app.sh` now refuses to run if `python` does not resolve to `<repo>/.venv/bin/python` and pre-checks that `huggingface_hub` and `py2app` are importable. |
+| 3 | `configuration error: project.license must be valid exactly by one definition` | `pyproject.toml` used the SPDX string form `license = "Apache-2.0"`, which requires `setuptools>=77`. Older setuptools rejected it. | Reverted to `license = { text = "Apache-2.0" }` table form, accepted by all setuptools versions in our supported range. |
+| 4 | `error: error in setup script: command 'py2app' has no such option 'codesign_entitlements'` | py2app 0.28 (the latest released version) does not support the `codesign_entitlements` option. | Removed the option from `setup_py2app.py`. The entitlements are still applied via `codesign --entitlements entitlements.plist …` in `package_dmg.sh` and the release workflow. |
+| 5 | `running py2app … error: install_requires is no longer supported` | setuptools 80+ removed the legacy `install_requires` keyword in `setup()`, which py2app 0.28 internally relies on. | Pinned `setuptools<70` in both `setup.sh` and the release workflow. Also pinned `py2app==0.28.10` (the exact tested version) and pre-installed `huggingface_hub` so users are not asked to do dependency surgery. |
+
+### Process gap that allowed all of this through
+There was no "fresh machine" gate before handoff. The previous status entries marked Phase 1 / 2 / 3 as **done** without a clean-VM build ever running end to end.
+
+**Mitigation added:** `.github/workflows/build-smoke.yml` runs on every push and PR. It does `rm -rf .venv ~/.aside; ./setup.sh; pytest; scripts/build_app.sh dev` on a fresh `macos-14` runner, then verifies the produced `.app` bundle and `otool`-audits the brittle native extensions. This is the gate that should have existed since Phase 1.
+
+### Still requires human-on-Mac validation
+- `scripts/build_app.sh release` (full bundle, not alias) actually produces a launchable `dist/Aside.app` on a clean machine and the build-smoke CI passes.
+- The packaged app finds the bundled Whisper model from `Aside.app/Contents/Resources/faster-whisper-base/` (resource path bundling).
+- Onboarding window appears on first launch from `/Applications` and the three permission rows turn green after grants.
 
 ## Decisions Log
 - 2026-04-26 — Use py2app for v1.1.0 packaging — Native macOS fit for menu-bar Python app; minimizes path refactor surface.

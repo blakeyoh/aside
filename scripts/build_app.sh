@@ -52,8 +52,31 @@ if ! command -v python >/dev/null 2>&1; then
   exit 1
 fi
 
+# Preflight: verify the active python is the project venv with the build
+# toolchain installed. The user may have been bounced to system Python
+# (anaconda, /usr/bin/python3) which is missing huggingface_hub / py2app
+# and silently produces confusing failures hundreds of lines later.
+PYTHON_EXE="$(command -v python)"
+if [[ ! "$PYTHON_EXE" =~ \.venv/bin/python$ ]]; then
+  echo "ERROR: build_app.sh expects the project venv on PATH, got: $PYTHON_EXE"
+  echo ""
+  echo "Activate it first:"
+  echo "  source .venv/bin/activate"
+  echo ""
+  echo "If .venv is missing, run ./setup.sh first."
+  exit 1
+fi
+
+if ! python -c "import huggingface_hub, py2app" >/dev/null 2>&1; then
+  echo "ERROR: build toolchain missing from venv (huggingface_hub or py2app)."
+  echo ""
+  echo "Re-run ./setup.sh to install the toolchain, or manually:"
+  echo "  pip install 'setuptools<70' wheel 'py2app==0.28.10' 'huggingface_hub>=0.20'"
+  exit 1
+fi
+
 echo "==> Cleaning old build artifacts"
-rm -rf build dist
+rm -rf build dist .eggs
 
 echo "==> Prefetching Systran/faster-whisper-base model into vendor/"
 python - "$MODEL_REVISION" <<'PY'

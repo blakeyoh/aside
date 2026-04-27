@@ -91,8 +91,20 @@ echo "✅  Virtual environment"
 echo ""
 echo "Installing Aside and dependencies (this takes a few minutes on first run)…"
 pip install --upgrade pip --quiet
+# Pin setuptools < 70 so py2app 0.28 (the latest release) can run.
+# Newer setuptools removed the legacy `install_requires` keyword that py2app's
+# build_app command reads; without this pin, `scripts/build_app.sh release`
+# fails with `error: install_requires is no longer supported`. wheel is needed
+# for any source-only deps installed below.
+pip install --quiet "setuptools<70" "wheel"
 pip install -e "$SCRIPT_DIR" --quiet
 echo "✅  Aside package installed (editable)"
+
+# Install the build toolchain (py2app + huggingface_hub) so that
+# scripts/build_app.sh works without manual surgery on the venv.
+echo "Installing build toolchain (py2app, huggingface_hub)…"
+pip install --quiet "py2app==0.28.10" "huggingface_hub>=0.20"
+echo "✅  Build toolchain installed"
 
 # ── Config directory ──────────────────────────────────────────────────────────
 ASIDE_DIR="$HOME/.aside"
@@ -137,14 +149,17 @@ echo "Verifying installation…"
 python3 -c "
 import sys
 deps = [
-    ('faster_whisper', 'faster-whisper'),
-    ('sounddevice',    'sounddevice'),
-    ('numpy',          'numpy'),
-    ('Quartz',         'pyobjc-framework-Quartz'),
-    ('AppKit',         'pyobjc-framework-Cocoa'),
-    ('customtkinter',  'customtkinter'),
-    ('PIL',            'pillow'),
-    ('aside',          'aside'),
+    ('faster_whisper',  'faster-whisper'),
+    ('sounddevice',     'sounddevice'),
+    ('numpy',           'numpy'),
+    ('Quartz',          'pyobjc-framework-Quartz'),
+    ('AppKit',          'pyobjc-framework-Cocoa'),
+    ('AVFoundation',    'pyobjc-framework-AVFoundation'),
+    ('customtkinter',   'customtkinter'),
+    ('PIL',             'pillow'),
+    ('aside',           'aside'),
+    ('py2app',          'py2app'),
+    ('huggingface_hub', 'huggingface_hub'),
 ]
 failed = []
 for module, pkg in deps:
