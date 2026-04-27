@@ -33,7 +33,7 @@
 
     <!-- Run as a menu bar app (no Dock icon) -->
     <key>LSUIElement</key>
-    <true/>
+    <false/>
 
     <!-- Minimum macOS for arm64 Apple Silicon support -->
     <key>LSMinimumSystemVersion</key>
