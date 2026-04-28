@@ -140,6 +140,8 @@ class App(ctk.CTk):
             model_size=self.cfg["model_size"],
             language=self.cfg.get("language"),
             punctuation_config=self.cfg.get("punctuation"),
+            hotwords=self.cfg.get("hotwords"),
+            replacements=self.cfg.get("replacements"),
             on_status=self._on_engine_status,
             on_transcription=self._on_transcription,
         )

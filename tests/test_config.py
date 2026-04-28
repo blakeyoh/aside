@@ -24,6 +24,12 @@ class TestLoadConfig:
         assert cfg["punctuation"]["capitalization"] == "sentence"
         assert cfg["punctuation"]["smart_quotes"] is False
         assert cfg["punctuation"]["trailing_space"] is True
+        assert cfg["hotwords"] == []
+        assert cfg["replacements"] == {
+            "alright": "all right",
+            "Alright": "All right",
+            "nevermind": "never mind",
+        }
 
     def test_loads_existing_config(self, tmp_aside_dir):
         tmp_aside_dir.mkdir(parents=True)
