@@ -165,8 +165,7 @@ class App(ctk.CTk):
         # ── Kick off engine ─────────────────────────────────────────────
         self.after_idle(self._start_engine)
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
-        if os.environ.get("ASIDE_SHOW_SETTINGS_ON_LAUNCH") == "1":
-            self.after(300, self._show_settings)
+        self.after(300, self._show_settings)
 
     # ── Engine startup ───────────────────────────────────────────────────
 

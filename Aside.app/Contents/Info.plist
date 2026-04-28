@@ -33,7 +33,7 @@
 
     <!-- Run as a menu bar app (no Dock icon) -->
     <key>LSUIElement</key>
-    <true/>
+    <false/>
 
     <!-- Suppress the "unverified developer" nag on first launch -->
     <key>LSMinimumSystemVersion</key>
