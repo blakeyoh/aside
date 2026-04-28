@@ -36,6 +36,9 @@ try:
     )
     QUARTZ_AVAILABLE = True
 except ImportError:
+    # Allow import/use of non-Quartz helpers in headless or non-macOS tests.
+    # Callables stay None (never invoked when QUARTZ_AVAILABLE is False), while
+    # constants remain ints so parse_hotkey/hotkeys_equal can still operate.
     CGEventTapCreate = None
     CGEventTapEnable = None
     CGEventGetIntegerValueField = None
@@ -52,6 +55,7 @@ except ImportError:
     kCGEventKeyUp = 11
     kCGEventFlagsChanged = 12
     kCGKeyboardEventKeycode = 0
+    # Keep fallback modifier masks aligned with Quartz bit positions.
     kCGEventFlagMaskControl = 1 << 18
     kCGEventFlagMaskAlternate = 1 << 19
     kCGEventFlagMaskCommand = 1 << 20
