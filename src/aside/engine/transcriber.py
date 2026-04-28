@@ -129,7 +129,7 @@ class Transcriber:
                     self._number_mode.deactivate()
 
             # Apply number mode to remaining text
-            if self._number_mode.is_active and cleaned_text:
+            if self._number_mode.active and cleaned_text:
                 cleaned_text = self._number_mode.process(cleaned_text)
 
             # Stage 6: Post-Processing
