@@ -5,14 +5,14 @@ from aside.commands.numbers import NumberMode
 class TestNumberMode:
     def test_default_off(self):
         nm = NumberMode()
-        assert nm.is_active is False
+        assert nm.active is False
 
     def test_toggle_on_off(self):
         nm = NumberMode()
         nm.activate()
-        assert nm.is_active is True
+        assert nm.active is True
         nm.deactivate()
-        assert nm.is_active is False
+        assert nm.active is False
 
     def test_no_conversion_when_off(self):
         nm = NumberMode()
@@ -60,4 +60,4 @@ class TestNumberMode:
         nm = NumberMode()
         nm.activate()
         nm.reset()
-        assert nm.is_active is False
+        assert nm.active is False
