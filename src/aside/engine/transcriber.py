@@ -79,6 +79,12 @@ class Transcriber:
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
+        if WhisperModel is None:
+            self._on_status(
+                "error: faster-whisper is not installed. Install dependency: pip install faster-whisper"
+            )
+            return
+
         try:
             model_source = _resolve_model_source(self.model_size)
             model = WhisperModel(model_source, device="cpu", compute_type="int8")

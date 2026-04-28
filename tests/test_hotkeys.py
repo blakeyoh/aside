@@ -33,3 +33,14 @@ def test_hotkey_manager_degrades_gracefully_when_quartz_missing(monkeypatch):
 
     assert manager._tap is None
     assert triggered == [True]
+
+
+def test_hotkey_manager_degrades_when_event_tap_binding_missing(monkeypatch):
+    monkeypatch.setattr(hotkeys, "QUARTZ_AVAILABLE", True)
+    monkeypatch.setattr(hotkeys, "CGEventTapCreate", None)
+    triggered = []
+
+    manager = HotkeyManager(on_accessibility_error=lambda: triggered.append(True))
+
+    assert manager._tap is None
+    assert triggered == [True]
