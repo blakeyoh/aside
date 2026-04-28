@@ -10,29 +10,53 @@ import queue
 import threading
 from typing import Callable, Optional
 
-from Quartz import (
-    CGEventTapCreate,
-    CGEventTapEnable,
-    CGEventGetIntegerValueField,
-    CGEventGetFlags,
-    kCGSessionEventTap,
-    kCGHeadInsertEventTap,
-    kCGEventKeyDown,
-    kCGEventKeyUp,
-    kCGEventFlagsChanged,
-    kCGKeyboardEventKeycode,
-    kCGEventFlagMaskControl,
-    kCGEventFlagMaskAlternate,
-    kCGEventFlagMaskCommand,
-    kCGEventFlagMaskShift,
-    kCGEventTapDisabledByTimeout,
-    CFMachPortCreateRunLoopSource,
-    CFRunLoopGetCurrent,
-    CFRunLoopAddSource,
-    CFRunLoopRun,
-    CFRunLoopStop,
-    kCFRunLoopCommonModes,
-)
+try:
+    from Quartz import (
+        CGEventTapCreate,
+        CGEventTapEnable,
+        CGEventGetIntegerValueField,
+        CGEventGetFlags,
+        kCGSessionEventTap,
+        kCGHeadInsertEventTap,
+        kCGEventKeyDown,
+        kCGEventKeyUp,
+        kCGEventFlagsChanged,
+        kCGKeyboardEventKeycode,
+        kCGEventFlagMaskControl,
+        kCGEventFlagMaskAlternate,
+        kCGEventFlagMaskCommand,
+        kCGEventFlagMaskShift,
+        kCGEventTapDisabledByTimeout,
+        CFMachPortCreateRunLoopSource,
+        CFRunLoopGetCurrent,
+        CFRunLoopAddSource,
+        CFRunLoopRun,
+        CFRunLoopStop,
+        kCFRunLoopCommonModes,
+    )
+except ImportError:
+    # Allow unit tests to run on non-macOS/headless environments
+    CGEventTapCreate = None
+    CGEventTapEnable = None
+    CGEventGetIntegerValueField = None
+    CGEventGetFlags = None
+    kCGSessionEventTap = None
+    kCGHeadInsertEventTap = None
+    kCGEventKeyDown = 10
+    kCGEventKeyUp = 11
+    kCGEventFlagsChanged = 12
+    kCGKeyboardEventKeycode = 0
+    kCGEventFlagMaskControl = 1
+    kCGEventFlagMaskAlternate = 2
+    kCGEventFlagMaskCommand = 4
+    kCGEventFlagMaskShift = 8
+    kCGEventTapDisabledByTimeout = 1000
+    CFMachPortCreateRunLoopSource = None
+    CFRunLoopGetCurrent = None
+    CFRunLoopAddSource = None
+    CFRunLoopRun = None
+    CFRunLoopStop = None
+    kCFRunLoopCommonModes = None
 
 DEFAULT_HOTKEY = {"modifiers": ["ctrl", "alt"], "trigger": "space"}
 ACCESSIBILITY_ERROR = (

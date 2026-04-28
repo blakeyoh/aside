@@ -29,8 +29,9 @@ from aside.resources import resource_path
 
 try:
     from faster_whisper import WhisperModel
-except ImportError as e:
-    raise SystemExit(f"faster-whisper not installed — run setup.sh\n{e}")
+except ImportError:
+    # Allow unit tests to run without faster-whisper
+    WhisperModel = None
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,8 @@ class Transcriber:
         model_size: str = "base",
         language: str | None = None,
         punctuation_config: dict | None = None,
+        hotwords: list[str] | None = None,
+        replacements: dict[str, str] | None = None,
         on_status: Callable[[str], None] | None = None,
         on_transcription: Callable[[str], None] | None = None,
     ):
@@ -63,6 +66,8 @@ class Transcriber:
             "smart_quotes": False,
             "trailing_space": True,
         }
+        self._hotwords = hotwords or []
+        self._replacements = replacements or {}
         self._on_status = on_status or (lambda _: None)
         self._on_transcription = on_transcription or (lambda _: None)
 
@@ -107,8 +112,13 @@ class Transcriber:
 
             # Stage 3: Dictionary Pre-Processing
             dict_data = parse_dictionary(self._dictionary_path)
-            hotwords_str = dict_data.whisper_hotwords or None
-            initial_prompt = self._context.build_initial_prompt(dict_data.hotwords) or None
+
+            # Combine defaults with user dictionary
+            combined_hotwords = self._hotwords + [
+                hw for hw in dict_data.hotwords if hw not in self._hotwords
+            ]
+            hotwords_str = " ".join(combined_hotwords) or None
+            initial_prompt = self._context.build_initial_prompt(combined_hotwords) or None
 
             # Stage 4: Whisper Transcription
             kwargs = {"vad_filter": True}
@@ -143,9 +153,13 @@ class Transcriber:
 
             # Stage 6: Post-Processing
             if cleaned_text:
-                cleaned_text = apply_replacements(
-                    cleaned_text, dict_data.compiled_replacements
-                )
+                # Merge replacements: user rules override and come first
+                combined_rules = dict_data.replacements.copy()
+                for k, v in self._replacements.items():
+                    if k not in combined_rules:
+                        combined_rules[k] = v
+
+                cleaned_text = apply_replacements(cleaned_text, combined_rules)
                 cleaned_text = format_text(
                     cleaned_text,
                     capitalization=self._punctuation_config.get("capitalization", "sentence"),
