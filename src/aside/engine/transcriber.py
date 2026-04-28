@@ -134,7 +134,9 @@ class Transcriber:
 
             # Stage 6: Post-Processing
             if cleaned_text:
-                cleaned_text = apply_replacements(cleaned_text, dict_data.replacements)
+                cleaned_text = apply_replacements(
+                    cleaned_text, dict_data.compiled_replacements
+                )
                 cleaned_text = format_text(
                     cleaned_text,
                     capitalization=self._punctuation_config.get("capitalization", "sentence"),

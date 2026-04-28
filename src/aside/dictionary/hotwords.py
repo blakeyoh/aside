@@ -1,5 +1,6 @@
 """Parse ~/.aside/dictionary.txt into hotwords and replacement rules."""
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -14,6 +15,7 @@ class DictionaryData:
     """Parsed dictionary contents."""
     hotwords: list[str] = field(default_factory=list)
     replacements: dict[str, str] = field(default_factory=dict)
+    compiled_replacements: list[tuple[re.Pattern, str]] = field(default_factory=list)
     over_limit: bool = False
 
     @property
@@ -70,6 +72,12 @@ def parse_dictionary(path: Path) -> DictionaryData:
                 continue
             seen.add(key)
             data.replacements[key] = value
+
+            # Pre-compile for performance (case-insensitive, word-boundary aware)
+            escaped = re.escape(key)
+            pattern = re.compile(rf"(?<!\w){escaped}(?!\w)", flags=re.IGNORECASE)
+            data.compiled_replacements.append((pattern, value))
+
             total += 1
         else:
             if line in seen:
