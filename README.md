@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/)
-[![macOS](https://img.shields.io/badge/macOS-14%2B-lightgrey.svg)](https://www.apple.com/macos/)
+[![macOS](https://img.shields.io/badge/macOS-11%2B%20arm64-lightgrey.svg)](https://www.apple.com/macos/)
 
 Aside is a local-first voice dictation app for macOS. It uses OpenAI's Whisper model running entirely on your machine — no subscriptions, no cloud APIs, no audio ever leaving your computer. Hold a hotkey to dictate, release to transcribe, and your words appear wherever your cursor is.
 
@@ -21,9 +21,19 @@ Your audio never leaves your Mac. Aside makes zero network calls during normal o
 - **Auto-punctuation** — Whisper infers punctuation from speech patterns
 - **Menubar app** — lives in your menubar, out of your way
 
-## Quick Start
+## Download
 
-**Requirements:** macOS 14+, Homebrew. Python 3.13 is installed automatically if missing.
+Download the latest `Aside-x.x.x.dmg` from the [Releases page](https://github.com/blakeyoh/aside/releases). Open the DMG, drag Aside to Applications, then double-click to launch.
+
+> **First launch:** macOS may show "Apple could not verify…" because Aside is ad-hoc signed, not notarized. **Right-click Aside.app → Open → Open** to bypass this once. After that it opens normally.
+
+Aside will walk you through granting the three required permissions (Microphone, Accessibility, Input Monitoring) on first launch.
+
+---
+
+## Developer Setup
+
+**Requirements:** macOS 11+ (Apple Silicon), Homebrew. Python 3.13 is installed automatically if missing.
 
 ```bash
 git clone https://github.com/blakeyoh/aside.git
@@ -55,8 +65,6 @@ source .venv/bin/activate && python -m aside
 ```
 
 A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
-
-> **First launch on a new machine:** macOS may show a security prompt the first time you open `Aside.app`. Right-click → Open → Open to bypass it, or run `setup.sh` first (it clears the quarantine flag automatically).
 
 On first launch, Aside downloads the Whisper model (~140 MB for `base`). This is a one-time download — after that, no network access occurs.
 

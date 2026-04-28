@@ -26,6 +26,12 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "smart_quotes": False,
         "trailing_space": True,
     },
+    "hotwords": [],
+    "replacements": {
+        "alright": "all right",
+        "Alright": "All right",
+        "nevermind": "never mind",
+    },
 }
 
 DICTIONARY_TEMPLATE = """\

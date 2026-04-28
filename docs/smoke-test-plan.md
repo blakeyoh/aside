@@ -30,12 +30,12 @@ Before running any test, establish the known baseline.
 
 - [ ] **PF-3: Verify package installation**
   - Run: `.venv/bin/python3 -c "import aside; print(aside.__version__)"`
-  - Expected: `1.0.1`
+  - Expected: `1.1.0`
   - **GATE:** If import fails, run `pip install -e .` and retry.
 
 - [ ] **PF-4: Verify unit tests**
   - Run: `.venv/bin/python3 -m pytest tests/ -v`
-  - Expected: `77 passed`
+  - Expected: `97 passed`
   - **GATE:** If any fail, fix before proceeding. Do not smoke test a broken build.
 
 - [ ] **PF-5: Verify macOS permissions**
@@ -85,6 +85,38 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Double-click `Aside.app`
 - [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
 - [ ] Expected: no Dock running dot; Aside is configured as a menu-bar agent app
+- [ ] **Result:** ________________________________________
+
+### T1.3b: First-Launch Onboarding (Permissions Gate)
+
+- [ ] Ensure clean state: `rm -rf ~/.aside` and revoke Microphone, Accessibility, and Input Monitoring for `Aside.app` in System Settings
+- [ ] Launch `Aside.app` from `/Applications`
+- [ ] Expected: Welcome / Permissions window appears with three rows (Microphone, Accessibility, Input Monitoring), all dots red
+- [ ] Expected: "Get Started" button is **disabled** while any permission is still red
+- [ ] Click "Open Settings" on each row → System Settings deep-links into the matching Privacy pane
+- [ ] Grant Microphone → row dot turns green within ~1.5 s
+- [ ] Grant Input Monitoring → row dot turns green
+- [ ] Grant Accessibility → row dot turns green; restart Aside (per the in-window note)
+- [ ] After all three are green, "Get Started" becomes enabled and turns green
+- [ ] Click "Get Started" → window closes
+- [ ] Verify: `cat ~/.aside/config.json | grep first_run_complete` shows `true`
+- [ ] **Result:** ________________________________________
+
+### T1.3c: Onboarding Dismissal Without Grants Re-prompts
+
+- [ ] Reset state: `rm -rf ~/.aside` and revoke all three permissions
+- [ ] Launch `Aside.app`
+- [ ] Click the window's red "X" close button without granting anything
+- [ ] Expected: window closes; `~/.aside/config.json` either does not exist or has `first_run_complete: false`
+- [ ] Quit and relaunch Aside
+- [ ] Expected: onboarding window reappears (does NOT silently skip into a broken state)
+- [ ] **CRITICAL:** This protects users from leaving onboarding without working hotkeys/recording.
+- [ ] **Result:** ________________________________________
+
+### T1.3d: Permissions Menu Item Re-Opens Onboarding
+
+- [ ] After completing T1.3b, click the menu bar icon → "Permissions…"
+- [ ] Expected: Permissions window reappears with current statuses
 - [ ] **Result:** ________________________________________
 
 ### T1.4: Window Hide (not Quit)

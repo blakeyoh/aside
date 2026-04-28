@@ -14,8 +14,7 @@ Stages 3-8 happen in this module's transcribe() method.
 """
 import logging
 import threading
-from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 from aside.commands.actions import execute_commands
 from aside.commands.numbers import NumberMode
@@ -26,13 +25,23 @@ from aside.dictionary.hotwords import parse_dictionary
 from aside.dictionary.replacements import apply_replacements
 from aside.engine.injector import inject_text, inject_keystroke
 from aside.punctuation.formatter import format_text
+from aside.resources import resource_path
 
 try:
     from faster_whisper import WhisperModel
-except ImportError as e:
-    raise SystemExit(f"faster-whisper not installed — run setup.sh\n{e}")
+except ImportError:
+    # Allow unit tests to run without faster-whisper
+    WhisperModel = None
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_model_source(model_size: str) -> str:
+    """Prefer bundled model resources when present; otherwise use model name."""
+    bundled = resource_path(f"faster-whisper-{model_size}")
+    if bundled.exists():
+        return str(bundled)
+    return model_size
 
 
 class Transcriber:
@@ -43,6 +52,8 @@ class Transcriber:
         model_size: str = "base",
         language: str | None = None,
         punctuation_config: dict | None = None,
+        hotwords: list[str] | None = None,
+        replacements: dict[str, str] | None = None,
         on_status: Callable[[str], None] | None = None,
         on_transcription: Callable[[str], None] | None = None,
     ):
@@ -55,6 +66,8 @@ class Transcriber:
             "smart_quotes": False,
             "trailing_space": True,
         }
+        self._hotwords = hotwords or []
+        self._replacements = replacements or {}
         self._on_status = on_status or (lambda _: None)
         self._on_transcription = on_transcription or (lambda _: None)
 
@@ -67,7 +80,8 @@ class Transcriber:
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
         try:
-            model = WhisperModel(self.model_size, device="cpu", compute_type="int8")
+            model_source = _resolve_model_source(self.model_size)
+            model = WhisperModel(model_source, device="cpu", compute_type="int8")
             with self._lock:
                 self._model = model
             self._on_status("ready")
@@ -98,8 +112,13 @@ class Transcriber:
 
             # Stage 3: Dictionary Pre-Processing
             dict_data = parse_dictionary(self._dictionary_path)
-            hotwords_str = dict_data.whisper_hotwords or None
-            initial_prompt = self._context.build_initial_prompt(dict_data.hotwords) or None
+
+            # Combine defaults with user dictionary
+            combined_hotwords = self._hotwords + [
+                hw for hw in dict_data.hotwords if hw not in self._hotwords
+            ]
+            hotwords_str = " ".join(combined_hotwords) or None
+            initial_prompt = self._context.build_initial_prompt(combined_hotwords) or None
 
             # Stage 4: Whisper Transcription
             kwargs = {"vad_filter": True}
@@ -129,12 +148,18 @@ class Transcriber:
                     self._number_mode.deactivate()
 
             # Apply number mode to remaining text
-            if self._number_mode.is_active and cleaned_text:
+            if self._number_mode.active and cleaned_text:
                 cleaned_text = self._number_mode.process(cleaned_text)
 
             # Stage 6: Post-Processing
             if cleaned_text:
-                cleaned_text = apply_replacements(cleaned_text, dict_data.replacements)
+                # Merge replacements: user rules override and come first
+                combined_rules = dict_data.replacements.copy()
+                for k, v in self._replacements.items():
+                    if k not in combined_rules:
+                        combined_rules[k] = v
+
+                cleaned_text = apply_replacements(cleaned_text, combined_rules)
                 cleaned_text = format_text(
                     cleaned_text,
                     capitalization=self._punctuation_config.get("capitalization", "sentence"),

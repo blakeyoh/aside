@@ -1,0 +1,92 @@
+name: Build smoke
+
+# Fresh-Mac install + py2app build smoke gate.
+# Catches dependency surgery / toolchain drift before a human tester does.
+# Runs on every push and PR — fails fast if `setup.sh` no longer installs
+# cleanly or `scripts/build_app.sh dev` no longer produces a launchable
+# app bundle.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  fresh-install:
+    runs-on: macos-14  # Apple Silicon, matches the supported target
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew system deps
+        # python-tk@3.13 is required because Homebrew's python@3.13 does not
+        # ship _tkinter; without it `import customtkinter` fails at runtime.
+        # Keep the version in lockstep with SUPPORTED_PYTHONS in setup.sh.
+        run: brew install python@3.13 python-tk@3.13 portaudio
+
+      - name: Run setup.sh on a clean checkout
+        run: |
+          # Pretend this is a brand-new machine: no pre-existing venv,
+          # no pre-installed py2app. Mirrors what a contributor sees.
+          rm -rf .venv ~/.aside
+          ./setup.sh
+
+      - name: Diagnostic — venv contents
+        if: always()
+        run: |
+          if [ -d .venv ]; then
+            source .venv/bin/activate
+            python --version
+            python -c "import sys; print('executable:', sys.executable)"
+            pip list
+          else
+            echo "(no .venv produced — setup.sh likely failed before venv creation)"
+          fi
+
+      - name: Run unit tests
+        run: |
+          source .venv/bin/activate
+          python -m pytest tests/ -v
+
+      - name: Build alias .app bundle (dev mode, no SHA pin needed)
+        run: |
+          source .venv/bin/activate
+          scripts/build_app.sh dev
+
+      - name: Verify .app bundle was produced
+        run: |
+          test -d dist/Aside.app
+          test -f dist/Aside.app/Contents/Info.plist
+          test -f dist/Aside.app/Contents/MacOS/Aside
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            dist/Aside.app/Contents/Info.plist
+
+      - name: Diagnostic — bundle layout
+        if: always()
+        run: |
+          if [ -d dist/Aside.app ]; then
+            echo "── Top-level Contents ──"
+            ls -la dist/Aside.app/Contents/
+            echo "── Resources ──"
+            ls -la dist/Aside.app/Contents/Resources/ 2>/dev/null | head -40 || true
+          else
+            echo "(no dist/Aside.app produced)"
+          fi
+
+      - name: Audit native dylib closure for ctranslate2
+        if: always()
+        run: |
+          # Sanity-check the brittle native deps. Alias-mode builds (-A) ship
+          # symlinks rather than copies, so absence of these files is not an
+          # error here — we just record what we find for debugging.
+          set +e
+          for ext in dist/Aside.app/Contents/Resources/lib/python*/ctranslate2/_ext*.so \
+                    dist/Aside.app/Contents/Resources/lib/python*/sounddevice*.so; do
+            if [ -f "$ext" ]; then
+              echo "── $ext ──"
+              otool -L "$ext"
+            fi
+          done
+          true
