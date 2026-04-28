@@ -74,7 +74,7 @@ def check_input_monitoring() -> PermissionStatus:
     except Exception:
         logger.debug("IOHIDCheckAccess unavailable; assuming input monitoring not determined")
         return PermissionStatus.NOT_DETERMINED
-    if result in (0, 3):
+    if result == 0:
         return PermissionStatus.GRANTED
     if result == 1:
         return PermissionStatus.DENIED
