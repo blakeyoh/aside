@@ -1,5 +1,13 @@
 # Aside — CHANGELOG
 
+## 2026-04-28 — Launch behavior conflict resolution
+
+- Standardized startup behavior around visible launch for validation: Settings now expected to open on app launch paths.
+- Aligned smoke test expectations with current runtime behavior for terminal launch and Finder/Dock launch.
+- Clarified app bundle intent as a regular Dock-enabled app (`LSUIElement=false`) to avoid menu-bar-agent ambiguity.
+- Removed `try/except` import wrapper in `menubar.py` so missing macOS dependencies fail fast during startup.
+- Added `docs/conflict-resolution-plan-2026-04-28.md` to document the conflict analysis, decisions, and follow-up sequencing.
+
 ## 2026-04-24 — v1.0.1: Reliability fixes
 
 - Fixed voice-command sequencing: punctuation and line-break commands now render inline with the dictated text instead of being injected before the transcript.

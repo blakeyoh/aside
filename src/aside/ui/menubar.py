@@ -9,22 +9,23 @@ from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-try:
-    from AppKit import (
-        NSApplication, NSApplicationActivationPolicyRegular,
-        NSObject, NSAlert, NSSound,
-        NSStatusBar, NSVariableStatusItemLength,
-        NSMenu, NSMenuItem,
-        NSImage, NSBezierPath, NSColor,
-    )
-    APPKIT_AVAILABLE = True
-except Exception:
-    APPKIT_AVAILABLE = False
+from AppKit import (
+    NSApplication,
+    NSApplicationActivationPolicyRegular,
+    NSObject,
+    NSAlert,
+    NSSound,
+    NSStatusBar,
+    NSVariableStatusItemLength,
+    NSMenu,
+    NSMenuItem,
+    NSImage,
+    NSBezierPath,
+    NSColor,
+)
 
 
 def play_sound(name: str) -> None:
-    if not APPKIT_AVAILABLE:
-        return
     try:
         sound = NSSound.soundNamed_(name)
         if sound:
@@ -47,30 +48,29 @@ def hotkey_display(cfg: dict) -> str:
     return "  ".join(parts)
 
 
-if APPKIT_AVAILABLE:
-    class _MenuDelegate(NSObject):
-        _show_cb = None
-        _quit_cb = None
+class _MenuDelegate(NSObject):
+    _show_cb = None
+    _quit_cb = None
 
-        def showWindow_(self, sender):
-            if self._show_cb:
-                self._show_cb()
+    def showWindow_(self, sender):
+        if self._show_cb:
+            self._show_cb()
 
-        def aboutApp_(self, sender):
-            try:
-                alert = NSAlert.alloc().init()
-                alert.setMessageText_("Aside")
-                alert.setInformativeText_(
-                    "Private voice dictation for Mac.\n"
-                    "100% local. Powered by Whisper."
-                )
-                alert.runModal()
-            except Exception:
-                pass
+    def aboutApp_(self, sender):
+        try:
+            alert = NSAlert.alloc().init()
+            alert.setMessageText_("Aside")
+            alert.setInformativeText_(
+                "Private voice dictation for Mac.\n"
+                "100% local. Powered by Whisper."
+            )
+            alert.runModal()
+        except Exception:
+            pass
 
-        def quitApp_(self, sender):
-            if self._quit_cb:
-                self._quit_cb()
+    def quitApp_(self, sender):
+        if self._quit_cb:
+            self._quit_cb()
 
 
 class MenuBar:
@@ -86,9 +86,6 @@ class MenuBar:
         self._idle_icon = None
         self._record_icon = None
         self._transcribe_icon = None
-
-        if not APPKIT_AVAILABLE:
-            return
 
         NSApplication.sharedApplication().setActivationPolicy_(
             NSApplicationActivationPolicyRegular

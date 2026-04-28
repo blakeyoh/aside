@@ -31,7 +31,7 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Aside needs microphone access to transcribe your speech locally.</string>
 
-    <!-- Run as a menu bar app (no Dock icon) -->
+    <!-- Run as a regular app (Dock icon enabled) -->
     <key>LSUIElement</key>
     <false/>
 

@@ -66,7 +66,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 ### T1.2: Terminal Launch
 
 - [ ] Run: `.venv/bin/python3 -m aside`
-- [ ] Expected: NO window appears. Menu bar shows Aside microphone icon.
+- [ ] Expected: Settings window appears on launch. Menu bar shows Aside microphone icon.
 - [ ] Verify: menu bar icon is visible in top-right area
 - [ ] **GATE:** The window *should* appear on launch. If it does not, launch logic is broken. (Quiet-launch behavior has been deferred to future work).
 - [ ] **Result:** ________________________________________
@@ -84,7 +84,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 
 - [ ] Double-click `Aside.app`
 - [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
-- [ ] Expected: no Dock running dot; Aside is configured as a menu-bar agent app
+- [ ] Expected: Aside appears as a regular app (Dock icon/running indicator may be visible)
 - [ ] **Result:** ________________________________________
 
 ### T1.4: Window Hide (not Quit)

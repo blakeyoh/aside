@@ -11,7 +11,6 @@ Threading model:
 """
 import fcntl
 import logging
-import os
 import sys
 import threading
 from pathlib import Path
