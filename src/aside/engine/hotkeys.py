@@ -168,6 +168,11 @@ class HotkeyManager:
             on_accessibility_error()
 
     def _install_event_tap(self, on_error: Callable | None) -> None:
+        if CGEventTapCreate is None:
+            if on_error:
+                on_error()
+            return
+
         event_mask = (
             (1 << kCGEventKeyDown)
             | (1 << kCGEventKeyUp)
