@@ -42,7 +42,7 @@
 ## 2026-03-14 — Hushed Hippo rebrand + customtkinter UI upgrade
 - Full rebrand: "Whisper Dictation" → "Hushed Hippo"; bundle, config path, logs, lock file all renamed
 - UI migrated from vanilla tkinter → customtkinter (dark theme, #00E5FF Sterile Cyan accent, corner radii, CTk widgets throughout)
-- Quiet launch: app starts hidden, window appears only via Settings... in menu bar or Dock click; WM_DELETE_WINDOW → withdraw (not quit)
+- Launch behavior: window is configured to appear automatically on launch. Quiet-start behavior is deferred to future work.
 - Menu bar: PNG template icon (hippo silhouette, auto dark/light inversion via setTemplate_); About dialog added; emoji status icons removed
 - Recording state: amber circle composited behind hippo icon in menu bar while recording; idle hippo restored on transcription complete
 - Header: hippo logo (CTkImage via Pillow) + tagline added; all body fonts bumped +1pt

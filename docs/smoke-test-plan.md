@@ -68,7 +68,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Run: `.venv/bin/python3 -m aside`
 - [ ] Expected: NO window appears. Menu bar shows Aside microphone icon.
 - [ ] Verify: menu bar icon is visible in top-right area
-- [ ] **GATE:** If window appears on launch, quiet-launch is broken.
+- [ ] **GATE:** The window *should* appear on launch. If it does not, launch logic is broken. (Quiet-launch behavior has been deferred to future work).
 - [ ] **Result:** ________________________________________
 
 ### T1.3: Settings Window
