@@ -13,10 +13,10 @@
     <string>com.blakeyoh.aside</string>
 
     <key>CFBundleVersion</key>
-    <string>1.0.1</string>
+    <string>1.1.0</string>
 
     <key>CFBundleShortVersionString</key>
-    <string>1.0.1</string>
+    <string>1.1.0</string>
 
     <key>CFBundleExecutable</key>
     <string>Aside</string>
@@ -31,12 +31,12 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>Aside needs microphone access to transcribe your speech locally.</string>
 
-    <!-- Run as a menu bar app (no Dock icon) -->
+    <!-- Run as a regular app (show Dock icon) -->
     <key>LSUIElement</key>
-    <true/>
+    <false/>
 
-    <!-- Suppress the "unverified developer" nag on first launch -->
+    <!-- Minimum macOS for arm64 Apple Silicon support -->
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>11.0</string>
 </dict>
 </plist>

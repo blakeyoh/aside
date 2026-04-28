@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+jobs:
+  release:
+    runs-on: macos-14  # Apple Silicon — matches arm64-only build target
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew dependencies
+        # python-tk@3.13 supplies _tkinter for Homebrew python@3.13.
+        # Keep the version in lockstep with SUPPORTED_PYTHONS in setup.sh.
+        run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
+
+      - name: Set up Python environment
+        run: |
+          python3.13 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          # Pin setuptools < 70 so py2app 0.28 (the latest release) can run.
+          # Newer setuptools removed the legacy `install_requires` keyword
+          # that py2app's build_app reads; the build aborts with
+          # `error: install_requires is no longer supported` without this pin.
+          .venv/bin/pip install "setuptools<70" wheel
+          .venv/bin/pip install "py2app==0.28.10" "huggingface_hub>=0.20"
+          .venv/bin/pip install -e .
+          # Make the venv's python the default for all subsequent steps
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Build Aside.app
+        # MODEL_REVISION must be pinned to a 40-char Hugging Face commit SHA
+        # so release artifacts are byte-reproducible. Set the value as a repo
+        # Actions variable (Settings → Secrets and variables → Actions →
+        # Variables → New variable, name: MODEL_REVISION). Update it when
+        # bumping the bundled Whisper model. Look it up with:
+        #   git ls-remote https://huggingface.co/Systran/faster-whisper-base main
+        # build_app.sh validates the value and fails the release if unpinned.
+        env:
+          MODEL_REVISION: ${{ vars.MODEL_REVISION }}
+        run: scripts/build_app.sh release
+
+      - name: Codesign
+        # Uses ad-hoc identity (-) until Apple Developer enrollment is complete.
+        # After enrollment: add a CODESIGN_IDENTITY repository secret containing
+        # your Developer ID Application certificate name, then change "-" below to
+        # "${{ secrets.CODESIGN_IDENTITY }}".
+        run: |
+          codesign --deep --force --sign - \
+            --entitlements entitlements.plist dist/Aside.app
+
+      # ── Notarization — uncomment after Apple Developer enrollment ─────────
+      #
+      # Required secrets (Settings → Secrets → Actions):
+      #   APPLE_ID          your Apple ID email
+      #   APPLE_TEAM_ID     10-character team ID from developer.apple.com
+      #   NOTARIZE_PASSWORD app-specific password from appleid.apple.com
+      #   CODESIGN_IDENTITY "Developer ID Application: Your Name (TEAMID)"
+      #
+      # Also change the Codesign step above to use ${{ secrets.CODESIGN_IDENTITY }}.
+      #
+      # - name: Notarize
+      #   env:
+      #     APPLE_ID:          ${{ secrets.APPLE_ID }}
+      #     APPLE_TEAM_ID:     ${{ secrets.APPLE_TEAM_ID }}
+      #     NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
+      #   run: |
+      #     xcrun notarytool submit dist/Aside.app \
+      #       --apple-id       "$APPLE_ID" \
+      #       --team-id        "$APPLE_TEAM_ID" \
+      #       --password       "$NOTARIZE_PASSWORD" \
+      #       --wait
+      #     xcrun stapler staple dist/Aside.app
+      #
+      # ─────────────────────────────────────────────────────────────────────
+
+      - name: Package DMG
+        run: scripts/package_dmg.sh
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Aside-*.dmg
+          generate_release_notes: true
