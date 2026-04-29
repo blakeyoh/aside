@@ -126,15 +126,26 @@ jobs:
         # Confirm the bundled Mach-O actually starts: catches dyld errors
         # and import-time crashes that py2app's static analysis missed.
         # The app has no headless mode; we just want a non-crash exit.
+        # Implemented in pure bash because macos-14 runners do not ship GNU
+        # `timeout` (it lives in coreutils, which is not preinstalled).
         run: |
           set +e
-          timeout 5 dist/Aside.app/Contents/MacOS/Aside >launch.log 2>&1
+          dist/Aside.app/Contents/MacOS/Aside >launch.log 2>&1 &
+          APP_PID=$!
+          ( sleep 5 && kill -TERM "$APP_PID" 2>/dev/null ) &
+          WATCHDOG_PID=$!
+          wait "$APP_PID"
           rc=$?
+          kill "$WATCHDOG_PID" 2>/dev/null
+          wait "$WATCHDOG_PID" 2>/dev/null
           echo "exit code: $rc"
           echo "── launch.log ──"
           cat launch.log
+          # 143 = SIGTERM from the watchdog (i.e. app was still alive after 5s,
+          # which is the expected outcome for a Tk-driven UI). 0 is also fine
+          # if the app happens to exit cleanly. Anything else is a crash.
           case "$rc" in
-            0|124|143) echo "OK rc=$rc (clean exit or timeout)" ;;
+            0|143) echo "OK rc=$rc (clean exit or watchdog timeout)" ;;
             *) echo "::error::Aside Mach-O exited rc=$rc — likely import or dyld failure"; exit 1 ;;
           esac
 
