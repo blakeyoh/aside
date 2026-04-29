@@ -32,16 +32,25 @@ jobs:
           # Make the venv's python the default for all subsequent steps
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
+      - name: Confirm tag matches src/aside/__version__
+        # Fail fast if someone tags a version that doesn't match the source.
+        # Otherwise package_dmg.sh would produce Aside-<__version__>.dmg
+        # and the release-upload glob below would not find an "Aside-<tag>.dmg".
+        run: |
+          PYVER=$(python -c "import sys; sys.path.insert(0,'src'); from aside import __version__; print(__version__)")
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "tag (without v)               = $TAG"
+          echo "src/aside/__init__.py version = $PYVER"
+          test "$TAG" = "$PYVER"
+
       - name: Build Aside.app
-        # MODEL_REVISION must be pinned to a 40-char Hugging Face commit SHA
-        # so release artifacts are byte-reproducible. Set the value as a repo
-        # Actions variable (Settings → Secrets and variables → Actions →
-        # Variables → New variable, name: MODEL_REVISION). Update it when
-        # bumping the bundled Whisper model. Look it up with:
-        #   git ls-remote https://huggingface.co/Systran/faster-whisper-base main
-        # build_app.sh validates the value and fails the release if unpinned.
+        # MODEL_REVISION is pinned in source so release artifacts are
+        # byte-reproducible and bumps go through code review. To bump:
+        #   1. git ls-remote https://huggingface.co/Systran/faster-whisper-base main
+        #   2. Replace the value below with the new 40-char SHA
+        #   3. Open a PR — release-rehearsal.yml will verify the bundle before tagging
         env:
-          MODEL_REVISION: ${{ vars.MODEL_REVISION }}
+          MODEL_REVISION: ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
         run: scripts/build_app.sh release
 
       - name: Codesign
@@ -81,8 +90,20 @@ jobs:
       - name: Package DMG
         run: scripts/package_dmg.sh
 
+      - name: Confirm exactly one DMG was produced
+        # Fails the release before the upload step if package_dmg.sh wrote a
+        # differently-named file (or none at all) — otherwise the upload glob
+        # would silently match nothing and produce an empty GitHub Release.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=( dist/Aside-*.dmg )
+          test "${#DMGS[@]}" -eq 1
+          echo "Found release artifact: ${DMGS[0]}"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/Aside-*.dmg
+          fail_on_unmatched_files: true
           generate_release_notes: true
