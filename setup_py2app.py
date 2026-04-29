@@ -6,9 +6,12 @@ Usage:
 """
 
 from pathlib import Path
+import sys
 
 from setuptools import setup
 from py2app.build_app import py2app as _py2app_command
+
+sys.setrecursionlimit(10000)
 
 
 class py2app(_py2app_command):
@@ -53,12 +56,39 @@ OPTIONS = {
         "huggingface_hub",
         "customtkinter",
         "PIL",
-        "AVFoundation",
     ],
     # sounddevice / numpy are explicit Python modules; the CFFI shim
     # `_sounddevice` is *not* a Python module (it's a dlopen'd dylib loaded
     # by sounddevice itself), so listing it under `includes` would fail.
-    "includes": ["sounddevice", "numpy"],
+    "includes": [
+        "sounddevice",
+        "numpy",
+        "AppKit",
+        "Quartz",
+        "AVFoundation",
+        "ApplicationServices",
+    ],
+    # py2app's module graph follows optional imports from packages such as
+    # huggingface_hub and onnxruntime. In a stale developer venv this can pull
+    # in large unused ML stacks that are not part of Aside's faster-whisper
+    # runtime path.
+    "excludes": [
+        "IPython",
+        "jax",
+        "llvmlite",
+        "matplotlib",
+        "numba",
+        "pandas",
+        "scipy",
+        "sympy",
+        "tensorflow",
+        "torch",
+        "torchaudio",
+        "torchgen",
+        "torchvision",
+        "transformers",
+        "triton",
+    ],
     "argv_emulation": False,
     # ctranslate2/native libs are brittle under strip
     "strip": False,

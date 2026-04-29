@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SOURCE="$SCRIPT_DIR/aside-logo.png"
 ICONSET="$SCRIPT_DIR/aside-icon.iconset"
 OUTPUT="$SCRIPT_DIR/AppIcon.icns"
-BUNDLE_RESOURCES="$SCRIPT_DIR/Aside.app/Contents/Resources/AppIcon.icns"
+ASSETS_OUTPUT="$SCRIPT_DIR/assets/AppIcon.icns"
 
 if [ ! -f "$SOURCE" ]; then
     echo "❌  aside-logo.png not found at $SOURCE"
@@ -25,7 +25,8 @@ done
 iconutil -c icns "$ICONSET" -o "$OUTPUT"
 rm -rf "$ICONSET"
 
-cp "$OUTPUT" "$BUNDLE_RESOURCES"
+mkdir -p "$SCRIPT_DIR/assets"
+cp "$OUTPUT" "$ASSETS_OUTPUT"
 
 echo "✅  AppIcon.icns updated ($OUTPUT)"
-echo "✅  Bundle copy updated ($BUNDLE_RESOURCES)"
+echo "✅  Assets copy updated ($ASSETS_OUTPUT)"

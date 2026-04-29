@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aside"
-version = "1.1.0"
+version = "1.2.0"
 description = "Private voice dictation for Mac. 100% local, no cloud, open source."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -24,6 +24,7 @@ dependencies = [
     "pyobjc-framework-Quartz>=10.3",
     "pyobjc-framework-Cocoa>=10.3",
     "pyobjc-framework-AVFoundation>=10.3",
+    "pyobjc-framework-ApplicationServices>=10.3",
     "customtkinter>=5.2.0",
     "pillow>=10.0.0",
 ]

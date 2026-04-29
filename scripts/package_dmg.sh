@@ -21,7 +21,7 @@ if [[ ! -d "dist/Aside.app" ]]; then
 fi
 
 if ! command -v create-dmg >/dev/null 2>&1; then
-  echo "create-dmg not found — install with: brew install create-dmg"
+  echo "create-dmg not found — run ./setup.sh or install with: brew install create-dmg"
   exit 1
 fi
 

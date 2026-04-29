@@ -47,6 +47,13 @@ if [[ ! -f "setup_py2app.py" ]]; then
   exit 1
 fi
 
+for required_file in Info.plist AppIcon.icns aside-logo.png entitlements.plist; do
+  if [[ ! -f "$required_file" ]]; then
+    echo "ERROR: required packaging input is missing: $required_file"
+    exit 1
+  fi
+done
+
 if ! command -v python >/dev/null 2>&1; then
   echo "python not found on PATH"
   exit 1
@@ -95,6 +102,7 @@ mods = [
     ("Quartz",         "pyobjc-framework-Quartz"),
     ("AppKit",         "pyobjc-framework-Cocoa"),
     ("AVFoundation",   "pyobjc-framework-AVFoundation"),
+    ("ApplicationServices", "pyobjc-framework-ApplicationServices"),
     ("tkinter",        "python-tk@3.13 (Homebrew)"),
 ]
 failed = []
@@ -115,7 +123,12 @@ print("All py2app input modules importable.")
 PY
 
 echo "==> Cleaning old build artifacts"
-rm -rf build dist .eggs
+if ! rm -rf build dist .eggs; then
+  # Finder can leave hidden .DS_Store metadata inside dist/ after a bundle
+  # has been opened. Clear generated Finder metadata and retry once.
+  find build dist .eggs -name .DS_Store -delete 2>/dev/null || true
+  rm -rf build dist .eggs
+fi
 
 echo "==> Prefetching Systran/faster-whisper-base model into vendor/"
 python - "$MODEL_REVISION" <<'PY'

@@ -19,6 +19,7 @@ class TestLoadConfig:
         cfg = load_config()
         assert cfg["model_size"] == "base"
         assert cfg["language"] is None
+        assert cfg["first_run_complete"] is False
         assert cfg["hotkey"] == {"modifiers": ["ctrl", "alt"], "trigger": "space"}
         assert cfg["toggle_hotkey"] is None
         assert cfg["punctuation"]["capitalization"] == "sentence"

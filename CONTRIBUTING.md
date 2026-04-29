@@ -4,34 +4,35 @@ Thank you for your interest in contributing. This guide covers everything you ne
 
 ## Prerequisites
 
-- macOS 14 or later
-- Python 3.13+
+- macOS 11 or later on Apple Silicon
 - Homebrew
 
 ## Dev Setup
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/aside-app/aside.git
+git clone https://github.com/blakeyoh/aside.git
 cd aside
 
-# 2. Install system dependency
-brew install portaudio
-
-# 3. Run setup (creates venv, installs deps)
+# 2. Run setup (installs Homebrew deps, creates .venv, installs Python deps)
 ./setup.sh
 
-# 4. Activate the virtual environment
-source venv/bin/activate
+# 3. Activate the virtual environment
+source .venv/bin/activate
 
-# 5. Launch in dev mode
-python app.py
+# 4. Launch in dev mode
+python -m aside
+
+# 5. Optional: build a local app bundle
+scripts/build_app.sh dev
 ```
+
+`setup.sh` currently supports Homebrew Python 3.13 and installs the matching `python-tk@3.13` formula so `customtkinter` can import cleanly. If setup chooses or installs a different Python minor in the future, keep the Tk formula in lockstep.
 
 ## Running Tests
 
 ```bash
-python -m pytest tests/ -v
+.venv/bin/python3 -m pytest tests/ -v
 ```
 
 Tests cover the transcription engine, voice command parser, custom dictionary loader, and hotkey manager. All tests run offline — no audio hardware required (audio capture is mocked).
@@ -54,7 +55,7 @@ black src/ tests/
 
 1. Fork the repository and create a branch from `main`
 2. Make your changes with tests
-3. Ensure `python -m pytest tests/ -v` passes
+3. Ensure `.venv/bin/python3 -m pytest tests/ -v` passes
 4. Open a pull request with a clear description of what changed and why
 5. Link any related issues
 

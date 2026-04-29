@@ -24,8 +24,9 @@
 ## Next: Manual Smoke Test
 - [ ] Run through `docs/smoke-test-plan.md` (6-phase Boeing FAI-style plan)
 - [ ] Fix any bugs discovered during smoke testing
-- [ ] Verify setup.sh works on a clean checkout on another machine
-- [ ] Verify v1.0.1 Finder/Dock launch on a clean checkout: Settings opens, menu-bar icon appears, hotkey permissions prompt as expected
+- [ ] Verify `setup.sh` works on a clean checkout on another machine
+- [ ] Verify developer mode: `.venv/bin/python3 -m aside` shows onboarding/settings and the menu-bar icon
+- [ ] Verify user mode: `scripts/build_app.sh release`, `scripts/package_dmg.sh`, DMG install, Settings/onboarding launch, menu-bar icon
 
 ## Short-term
 - ~~**Aside-branded menu bar icon**~~ — done 2026-03-29 (aside-logo.png → AppIcon.icns)
@@ -33,9 +34,9 @@
 - ~~**Transcribing state in menu bar icon**~~ — done 2026-04-24 (blue processing badge while Whisper runs)
 - ~~**Hotkey capture cancel button**~~ — done 2026-04-24 (abort capture without pressing a combo)
 - ~~**Reliability pass**~~ — done 2026-04-24 (inline command rendering, punctuation dedupe, modifier-release stop, hotkey conflict rejection)
+- ~~**py2app DMG packaging path**~~ — done 2026-04-26 (release workflow scaffold, local DMG packaging, bundled base model)
 
 ## Medium-term
-- [ ] **PyInstaller standalone .app** — 1-2 day prototype, 3-5 day reliable unsigned app; use `--onedir --windowed`, custom spec, icon, `Info.plist`, bundled assets, and manual smoke tests
 - [ ] **Code signing / Gatekeeper notarization** — requires Apple Developer account ($99/yr)
 - [ ] **Interactive tutorial webpage** — "training range" for practicing voice commands with feedback
 - [ ] **Transcription history log** — last N results with timestamps, searchable

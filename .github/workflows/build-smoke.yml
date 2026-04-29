@@ -60,8 +60,11 @@ jobs:
           test -d dist/Aside.app
           test -f dist/Aside.app/Contents/Info.plist
           test -f dist/Aside.app/Contents/MacOS/Aside
+          test -f dist/Aside.app/Contents/Resources/aside-logo.png
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
             dist/Aside.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :LSUIElement" \
+            dist/Aside.app/Contents/Info.plist | grep -qx "false"
 
       - name: Diagnostic — bundle layout
         if: always()

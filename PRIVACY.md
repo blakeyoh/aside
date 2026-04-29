@@ -30,7 +30,7 @@ grep -r "urllib\|requests\|httpx\|aiohttp\|socket" src/aside/
 It returns nothing. There is no networking code in the application.
 
 ### What about model downloads?
-The `faster-whisper` library downloads Whisper models from Hugging Face on first run. After that initial download, Aside never contacts the network again. Models are cached locally at `~/.cache/huggingface/`.
+Release DMGs bundle the base Whisper model inside `Aside.app`, so normal user-mode app launches do not download a model. Developer setup (`./setup.sh`) downloads the base model from Hugging Face once for local source-mode testing and caches it under `~/.cache/huggingface/`.
 
 ## Data Flow
 

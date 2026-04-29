@@ -91,13 +91,13 @@ echo "✅  Homebrew"
 # Python but the Tk binding will load against another and `import tkinter`
 # will fail downstream.
 TK_FORMULA="python-tk@${PYTHON_MINOR_VERSION}"
-for pkg in portaudio "${TK_FORMULA}"; do
+for pkg in portaudio "${TK_FORMULA}" create-dmg; do
     if ! brew list "$pkg" &>/dev/null 2>&1; then
         echo "Installing $pkg…"
         brew install "$pkg"
     fi
 done
-echo "✅  portaudio + ${TK_FORMULA}"
+echo "✅  portaudio + ${TK_FORMULA} + create-dmg"
 
 # ── Python venv ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -193,6 +193,7 @@ deps = [
     ('Quartz',          'pyobjc-framework-Quartz'),
     ('AppKit',          'pyobjc-framework-Cocoa'),
     ('AVFoundation',    'pyobjc-framework-AVFoundation'),
+    ('ApplicationServices', 'pyobjc-framework-ApplicationServices'),
     ('customtkinter',   'customtkinter'),
     ('PIL',             'pillow'),
     ('aside',           'aside'),
@@ -212,14 +213,6 @@ if failed:
     sys.exit(1)
 "
 echo "✅  All dependencies verified"
-
-# ── Register install path ─────────────────────────────────────────────────────
-# Stored so a packaged Aside.app (dist/Aside.app from scripts/build_app.sh)
-# can locate this venv if moved to /Applications.
-ASIDE_DIR="$HOME/.aside"
-mkdir -p "$ASIDE_DIR"
-echo "$SCRIPT_DIR" > "$ASIDE_DIR/install_path.txt"
-echo "✅  Install path registered: $SCRIPT_DIR"
 
 # ── Permissions reminder ──────────────────────────────────────────────────────
 echo ""

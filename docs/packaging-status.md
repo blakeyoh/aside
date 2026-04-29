@@ -1,10 +1,30 @@
 # Packaging Status Board
 
 ## Current Status
-- **Phase:** 3 (smoke-test recovery)
-- **In-flight:** First on-Mac smoke attempt failed in 5 distinct ways. Recovery commit pins the toolchain, removes a non-existent dependency, drops py2app options that 0.28 does not support, and adds a fresh-Mac CI smoke gate so this regression class fails in CI rather than on a tester's machine.
-- **Branch:** `claude/prepare-smoke-test-9M52G`
-- **Last updated:** 2026-04-27
+- **Phase:** 3 (launch visibility + smoke-test recovery)
+- **In-flight:** `stabilize-launch-icon-install` keeps the `pyinstaller-and-more` packaging/runtime hardening and ports the launch-visibility intent from `fix-dock-icon-and-settings-launch-15421400996173080794` without taking the stale conflict resolution wholesale. First run now shows onboarding; later launches show Settings. Build smoke now verifies the bundled menu-bar icon resource and `LSUIElement=false`.
+- **Branch:** `stabilize-launch-icon-install`
+- **Last updated:** 2026-04-29
+
+## 2026-04-29 — Launch conflict resolution route
+
+The stable route is to start from `origin/pyinstaller-and-more`, not from the later launch branch, because `pyinstaller-and-more` already contains the clean install work: py2app scaffolding, release/build-smoke workflows, Python/Tk allow-listing, onboarding, AppKit/Quartz runtime fallbacks, and DMG packaging. The launch branch contains the right product decision, visible startup and Dock-enabled app behavior, but its `menubar.py` and `app.py` are older than the packaging branch and would drop the newer onboarding and graceful dependency handling if merged directly.
+
+Applied decision:
+- Keep `Info.plist` as a regular Dock-enabled app with `LSUIElement=false`.
+- Keep the AppKit availability guard in `menubar.py` so tests and incomplete developer environments do not crash during import. `setup.sh` and `scripts/build_app.sh` still fail fast if AppKit is missing from an install/build environment.
+- Replace quiet-launch behavior with a visible startup surface: onboarding until `first_run_complete=true`, then Settings on every launch.
+- Add build-smoke checks for `dist/Aside.app/Contents/Resources/aside-logo.png` and `LSUIElement=false` so a future build cannot silently ship without the menu-bar image resource or Dock-enabled bundle mode.
+- Raise py2app/modulegraph recursion headroom for full release builds and explicitly exclude unused optional ML stacks that can exist in stale developer venvs.
+- Install `create-dmg` in `setup.sh` so local DMG packaging is not a hidden extra prerequisite.
+
+### Verification on 2026-04-29
+- `./setup.sh` completed after installing `create-dmg`.
+- `scripts/build_app.sh dev` completed and produced `dist/Aside.app`.
+- `scripts/build_app.sh release` completed with pinned model revision `ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66`.
+- `scripts/package_dmg.sh` completed with escalation for `hdiutil` and produced `dist/Aside-1.1.0.dmg`.
+- `codesign --verify --deep --strict --verbose=2 dist/Aside.app` passed.
+- Bundle checks: `LSUIElement=false`, version `1.1.0`, `aside-logo.png` present, bundled `faster-whisper-base/model.bin` present, app size 399 MB, DMG size 224 MB.
 
 ## Failed Smoke (2026-04-27) — Postmortem
 First attempt to install on a clean Apple Silicon machine in developer mode failed at five points. Each is now addressed:

@@ -21,12 +21,13 @@ Open-source privacy-first voice dictation for macOS. Push-to-talk and toggle hot
 ## Setup & Launch
 
 ```bash
-./setup.sh                          # one-time: creates .venv, installs deps, downloads base model, clears Gatekeeper quarantine
+./setup.sh                          # one-time: creates .venv, installs deps, downloads base model
 .venv/bin/python3 -m aside          # launch via Terminal
-# OR: double-click Aside.app (can be moved to /Applications after setup.sh runs)
+source .venv/bin/activate
+scripts/build_app.sh dev            # optional local dist/Aside.app for app-mode testing
 ```
 
-`setup.sh` auto-installs Python 3.13 via Homebrew if missing. It writes `~/.aside/install_path.txt` so `Aside.app` can find the venv from `/Applications` or anywhere.
+`setup.sh` auto-installs Homebrew Python 3.13 if missing and installs the matching `python-tk@3.13` formula. Release DMGs are self-contained py2app bundles; developer app bundles are built into `dist/Aside.app`.
 
 Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migrated from HushedHippo and WhisperDictation paths on first launch.
 
@@ -37,6 +38,8 @@ src/aside/
 ├── __init__.py              # __version__ = "1.1.0"
 ├── __main__.py              # entry point
 ├── config.py                # load/save/migrate config, DEFAULT_CONFIG
+├── permissions.py           # mic/accessibility/input-monitoring checks + Settings links
+├── resources.py             # source vs py2app resource path lookup
 ├── engine/
 │   ├── audio.py             # AudioCapture: sounddevice + chunk management
 │   ├── hotkeys.py           # HotkeyManager: GIL-safe event tap + capture mode
@@ -55,6 +58,7 @@ src/aside/
 └── ui/
     ├── app.py               # App(ctk.CTk): main shell, wiring, state machines
     ├── menubar.py           # MenuBar: NSStatusBar + NSMenu + hotkey_display()
+    ├── onboarding.py        # first-run permissions window
     ├── settings.py          # build_settings(): all settings panel widgets
     └── theme.py             # colors, fonts, MODELS, LANGUAGES, STATUS_MAP
 ```
@@ -124,7 +128,7 @@ File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined).
 ## Testing
 
 ```bash
-.venv/bin/python3 -m pytest tests/ -v    # 97 unit tests
+.venv/bin/python3 -m pytest tests/ -v    # 118 unit tests
 ```
 
 Manual smoke test plan: `docs/smoke-test-plan.md` (Boeing FAI-style, 6 phases, go/no-go gates)
@@ -146,8 +150,8 @@ Use the integer `0` directly.
 ### `sounddevice.InputStream.stop()` blocks the calling thread
 **Never call it on the main thread.** The Transcriber runs stop/close on its background thread.
 
-### `.app` launch path resolution
-`setup.sh` writes `~/.aside/install_path.txt` so `Aside.app` can find the project venv even when moved to `/Applications`. The launcher validates that path and falls back to walking `../../..` from the bundle for in-repo launches. Keep both paths working.
+### py2app resource lookup
+Use `aside.resources.resource_path(...)` for files that must work in both source checkouts and bundled apps. Source mode resolves from the repo root. py2app mode resolves from `Aside.app/Contents/Resources`.
 
 ### customtkinter init order
 `ctk.set_appearance_mode()` and `ctk.set_default_color_theme()` MUST be called BEFORE `super().__init__()`. Silent failure otherwise.
@@ -162,7 +166,7 @@ Use the integer `0` directly.
 Hand the raw PNG NSImage directly to `NSStatusBarButton.setImage_()` — the button scales template images automatically.
 
 ### Launch visibility
-Terminal launch starts withdrawn and is controlled from the menu-bar icon. Finder/Dock `.app` launch sets `ASIDE_SHOW_SETTINGS_ON_LAUNCH=1`, so Settings opens once to prove the app started. `WM_DELETE_WINDOW` → `withdraw()` (not quit).
+Startup must always show a visible surface. First run shows onboarding until all three permissions are granted. Later launches show Settings automatically. `WM_DELETE_WINDOW` → `withdraw()` (not quit).
 
 ### Single-instance lock
 Lock file at `~/.aside/aside.lock` using `fcntl.flock()`. Second launch shows alert and exits.

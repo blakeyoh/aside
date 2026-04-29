@@ -8,7 +8,7 @@ The custom dictionary lets you teach Aside domain-specific terms and correction 
 ~/.aside/dictionary.txt
 ```
 
-Aside watches this file and reloads it automatically when you save changes. You can also add terms through the in-app Settings panel under "Custom Dictionary".
+Aside reads this file each time it transcribes, so direct edits apply on the next dictation. You can also add terms through the in-app Settings panel under "Custom Dictionary".
 
 ## File Format
 
@@ -41,7 +41,7 @@ The dictionary supports up to 50 entries (hotwords + replacements combined). Thi
 
 **In-app:** Open Aside settings (click the menubar icon → Settings → Custom Dictionary). Use the text fields to add a hotword or a replacement rule. Changes save immediately.
 
-**By editing the file directly:** Open `~/.aside/dictionary.txt` in any text editor and save. Aside reloads within a few seconds.
+**By editing the file directly:** Open `~/.aside/dictionary.txt` in any text editor and save. The next transcription uses the updated file.
 
 ## Example Dictionary File
 

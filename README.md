@@ -27,7 +27,7 @@ Download the latest `Aside-x.x.x.dmg` from the [Releases page](https://github.co
 
 > **First launch:** macOS may show "Apple could not verify…" because Aside is ad-hoc signed, not notarized. **Right-click Aside.app → Open → Open** to bypass this once. After that it opens normally.
 
-Aside will walk you through granting the three required permissions (Microphone, Accessibility, Input Monitoring) on first launch.
+Aside includes the base Whisper model in the release app, so first launch does not need Terminal, Homebrew, Python, or a model download. It will walk you through granting the three required permissions: Microphone, Accessibility, and Input Monitoring.
 
 ---
 
@@ -41,7 +41,7 @@ cd aside
 ./setup.sh
 ```
 
-`setup.sh` installs all dependencies, downloads the Whisper `base` model (~140 MB, one-time), and prepares `Aside.app`. This takes a few minutes on first run.
+`setup.sh` installs all dependencies, downloads the Whisper `base` model (~140 MB, one-time), and prepares the local Python environment. This takes a few minutes on first run.
 
 ### Grant permissions (required)
 
@@ -57,16 +57,21 @@ macOS will prompt for most of these on first use — click **Allow**.
 
 ### Launch
 
-Double-click `Aside.app` in the project folder, or drag it to your Dock first. You can also move it to `/Applications` after running `setup.sh`. Finder/Dock launch opens Settings once so you can confirm Aside started; terminal launch starts hidden and is controlled from the menu bar.
-
 ```bash
-# Terminal alternative
 source .venv/bin/activate && python -m aside
 ```
 
-A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
+First launch shows the permissions onboarding window. After permissions are complete, terminal and app launches open Settings so startup is visible and easy to validate. A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
 
-On first launch, Aside downloads the Whisper model (~140 MB for `base`). This is a one-time download — after that, no network access occurs.
+To build a local `.app` for developer testing:
+
+```bash
+source .venv/bin/activate
+scripts/build_app.sh dev
+open dist/Aside.app
+```
+
+Developer mode downloads the Whisper model once into the local cache. Release DMGs bundle the model inside `Aside.app`, so normal app use makes no network calls.
 
 ## Aside vs. Wispr Flow
 
@@ -89,6 +94,14 @@ Wispr Flow is faster and more accurate — if privacy isn't a concern, it's a gr
 Aside recognizes 12 voice commands for formatting and editing. Say them naturally as part of your dictation — Aside strips them from the output and applies the action inline. Spoken punctuation commands take priority at their location, while Whisper punctuation elsewhere is preserved.
 
 See [docs/voice-commands.md](docs/voice-commands.md) for the full reference.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Custom dictionary](docs/custom-dictionary.md)
+- [Manual smoke test plan](docs/smoke-test-plan.md)
+- [Packaging status](docs/packaging-status.md)
+- [Launch conflict resolution](docs/launch-conflict-resolution-2026-04-29.md)
 
 ## Contributing
 

@@ -14,7 +14,7 @@ from aside.permissions import (
     check_accessibility,
     check_input_monitoring,
     check_microphone,
-    open_privacy_pane,
+    request_privacy_access,
 )
 from aside.ui.theme import ACCENT, BG, BG2, FG, FG2, FONT, SEP
 
@@ -162,7 +162,7 @@ class OnboardingWindow(ctk.CTkToplevel):
             corner_radius=8,
             height=30,
             width=130,
-            command=lambda p=row["pane"]: open_privacy_pane(p),
+            command=lambda p=row["pane"]: request_privacy_access(p),
         )
         btn.pack(side="right")
 

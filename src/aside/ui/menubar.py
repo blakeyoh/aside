@@ -1,7 +1,6 @@
 """AppKit menu bar integration for Aside.
 
-Creates the system status bar item with icon, recording indicator,
-and dropdown menu (About, Settings, Quit).
+Creates the system status bar item with app icon and dropdown menu.
 """
 import logging
 from pathlib import Path
@@ -9,13 +8,15 @@ from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
+STATUS_ICON_SIZE = 18.0
+
 try:
     from AppKit import (
         NSApplication, NSApplicationActivationPolicyRegular,
         NSObject, NSAlert, NSSound,
         NSStatusBar, NSVariableStatusItemLength,
         NSMenu, NSMenuItem,
-        NSImage, NSBezierPath, NSColor,
+        NSImage,
     )
     APPKIT_AVAILABLE = True
 except Exception:
@@ -135,16 +136,13 @@ class MenuBar:
 
         bar_image = NSImage.alloc().initWithContentsOfFile_(str(icon_path))
         if bar_image is not None:
-            bar_image.setTemplate_(True)
+            bar_image.setSize_((STATUS_ICON_SIZE, STATUS_ICON_SIZE))
+            bar_image.setTemplate_(False)
             item.button().setImage_(bar_image)
             item.button().setTitle_("")
             self._idle_icon = bar_image
-            self._record_icon = self._make_badged_icon(
-                bar_image, (1.0, 0.624, 0.039, 1.0)
-            )
-            self._transcribe_icon = self._make_badged_icon(
-                bar_image, (0.039, 0.518, 1.0, 1.0)
-            )
+            self._record_icon = bar_image
+            self._transcribe_icon = bar_image
         else:
             logger.warning("Menu bar icon not found: %s", icon_path)
             item.button().setTitle_("A")
@@ -197,18 +195,3 @@ class MenuBar:
                 self._status_item.button().setImage_(icon)
         except Exception:
             pass
-
-    @staticmethod
-    def _make_badged_icon(
-        idle_icon: "NSImage",
-        rgba: tuple[float, float, float, float],
-    ) -> "NSImage":
-        size = 22.0
-        img = NSImage.alloc().initWithSize_((size, size))
-        img.lockFocus()
-        NSColor.colorWithSRGBRed_green_blue_alpha_(*rgba).setFill()
-        NSBezierPath.bezierPathWithOvalInRect_(((0.0, 0.0), (size, size))).fill()
-        if idle_icon:
-            idle_icon.drawInRect_(((0.0, 0.0), (size, size)))
-        img.unlockFocus()
-        return img
