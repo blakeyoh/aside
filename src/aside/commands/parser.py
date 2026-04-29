@@ -188,18 +188,6 @@ def parse_transcript(text: str) -> ParsedTranscript:
     )
 
 
-def parse_commands(text: str) -> tuple[list[Command], str]:
-    """Parse voice commands from transcribed text.
-
-    Returns (list_of_commands, cleaned_text_without_commands).
-
-    This compatibility wrapper preserves the original public contract. New
-    pipeline code should use parse_transcript() to preserve inline command order.
-    """
-    parsed = parse_transcript(text)
-    return parsed.commands, parsed.cleaned_text
-
-
 def _append_text(parts: list[str], text: str) -> None:
     chunk = re.sub(r"\s+", " ", text).strip()
     if not chunk:
