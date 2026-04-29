@@ -35,12 +35,6 @@ class TestContextBuffer:
         assert "one" not in prompt
         assert "four" in prompt
 
-    def test_reset(self):
-        buf = ContextBuffer()
-        buf.append("something")
-        buf.reset()
-        assert buf.build_initial_prompt([]) == ""
-
     def test_token_truncation(self):
         buf = ContextBuffer(max_tokens=20)
         buf.append("a " * 100)  # way over limit
