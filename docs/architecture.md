@@ -1,106 +1,139 @@
 # Aside Architecture
 
+Aside is a macOS voice dictation app with a Python engine, a customtkinter settings/onboarding UI, and AppKit menu-bar integration. The app supports two install paths:
+
+- **User mode:** a py2app-built `Aside.app` distributed in a DMG with the base Whisper model bundled under `Aside.app/Contents/Resources/`.
+- **Developer mode:** a source checkout with `.venv`, launched with `.venv/bin/python3 -m aside` or built locally with `scripts/build_app.sh dev`.
+
 ## Transcription Pipeline
 
-Audio flows through 8 stages from microphone capture to text output:
+Audio flows through eight stages:
 
 ```
-1. Hotkey capture        src/aside/hotkey.py
+1. Hotkey detection      src/aside/engine/hotkeys.py
         |
         v
-2. Audio capture         src/aside/audio.py
+2. Audio capture         src/aside/engine/audio.py
         |
         v
-3. VAD (silence trim)    src/aside/vad.py
+3. Dictionary context    src/aside/dictionary/hotwords.py
+                         src/aside/dictionary/context.py
         |
         v
-4. Whisper transcription src/aside/engine.py
+4. Whisper transcription src/aside/engine/transcriber.py
         |
         v
-5. Voice command parse   src/aside/commands.py
+5. Voice command parse   src/aside/commands/parser.py
+                         src/aside/commands/actions.py
+                         src/aside/commands/numbers.py
         |
         v
-6. Dictionary apply      src/aside/dictionary.py
+6. Post-processing       src/aside/dictionary/replacements.py
+                         src/aside/punctuation/formatter.py
         |
         v
-7. Text injection        src/aside/injector.py
+7. Text injection        src/aside/engine/injector.py
         |
         v
-8. UI feedback           src/aside/ui.py
+8. UI/menu feedback      src/aside/ui/app.py
+                         src/aside/ui/menubar.py
 ```
 
 ## Thread Model
 
-Aside uses three execution contexts to keep the UI responsive and avoid blocking the Quartz event tap:
-
 ```
 Main thread (Tk)
-  - Renders the menubar UI
-  - Polls a queue for transcription results via after()
-  - Never blocks on audio or Whisper
+  - Renders Settings and onboarding windows
+  - Owns AppKit menu callbacks by scheduling work back onto Tk with after()
+  - Polls HotkeyManager every 10 ms
+  - Never blocks on Whisper model loading or stream.stop()
 
-Event-tap background thread (CFRunLoop)
-  - Intercepts global hotkey events via CGEventTap
-  - Posts start/stop signals to an audio queue
-  - Holds no Python locks (GIL isolation requirement)
-  - Never calls Tk or PyObjC UI methods
+Event-tap thread (CFRunLoop)
+  - Receives Quartz key events
+  - Pushes raw event ints into a queue
+  - Does not acquire Python locks
+  - Re-enables the event tap after timeout
 
-Worker threads (ThreadPoolExecutor)
-  - Audio capture runs in a dedicated thread
-  - Whisper inference runs in a dedicated thread
-  - Results posted to the main-thread queue
+Worker threads
+  - model-load: loads faster-whisper
+  - transcribe: stops audio, runs the pipeline, injects text
+  - audio warmup: initializes PortAudio away from the UI thread
 ```
 
-This structure avoids two known failure modes:
-- Adding a CGEventTap to `CFRunLoopGetMain()` while Tk is running causes GIL corruption
-- Acquiring Python locks inside the Quartz callback causes deadlocks
-
-See instinct `quartz-eventtap-gil-isolation` for implementation details.
+This structure avoids the two failure modes that previously caused crashes: running the Quartz event tap on Tk's main loop, and doing blocking audio work on the UI thread.
 
 ## Module Responsibilities
 
 | Module | Responsibility |
-|--------|---------------|
-| `src/aside/app.py` | Entry point; wires all modules together, starts Tk mainloop |
-| `src/aside/hotkey.py` | CGEventTap setup and hotkey detection |
-| `src/aside/audio.py` | Microphone capture into RAM buffer via PyAudio |
-| `src/aside/vad.py` | Voice activity detection; trims leading/trailing silence |
-| `src/aside/engine.py` | Whisper model loading and transcription |
-| `src/aside/commands.py` | Voice command tokenization and action dispatch |
-| `src/aside/dictionary.py` | Loads `~/.aside/dictionary.txt`, applies hotwords and replacements |
-| `src/aside/injector.py` | Types text at cursor via Quartz CGEventCreateKeyboardEvent |
-| `src/aside/ui.py` | customtkinter menubar window and status indicators |
-| `src/aside/config.py` | Reads/writes `~/.aside/config.json` |
+|--------|----------------|
+| `src/aside/__main__.py` | Console and `python -m aside` entry point |
+| `src/aside/config.py` | `~/.aside/config.json`, defaults, migration, dictionary template |
+| `src/aside/resources.py` | Resource lookup for source checkout vs py2app bundle |
+| `src/aside/permissions.py` | Microphone, Accessibility, Input Monitoring checks plus native permission requests and System Settings links |
+| `src/aside/engine/hotkeys.py` | Quartz event tap, hotkey capture, graceful no-Quartz degradation |
+| `src/aside/engine/audio.py` | `sounddevice` input stream and RAM buffer management |
+| `src/aside/engine/transcriber.py` | faster-whisper model loading and stages 3-8 of the pipeline |
+| `src/aside/engine/injector.py` | Quartz keystroke/text injection |
+| `src/aside/ui/app.py` | Main app shell, lifecycle, startup visibility, state machine |
+| `src/aside/ui/menubar.py` | AppKit status item, visible app icon, and menu actions |
+| `src/aside/ui/onboarding.py` | First-run permissions gate |
+| `src/aside/ui/settings.py` | Settings panel widgets and dictionary controls |
+
+## Packaging Flow
+
+```
+setup.sh
+  -> installs Homebrew Python 3.13 + python-tk@3.13 + portaudio
+  -> creates .venv
+  -> pip install -e .
+  -> installs py2app, huggingface_hub, pytest
+  -> downloads faster-whisper base into the developer cache
+
+scripts/build_app.sh dev
+  -> verifies packaging inputs and importable modules
+  -> downloads vendor/models/faster-whisper-base
+  -> runs python setup_py2app.py py2app -A
+  -> produces dist/Aside.app for local app-mode testing
+
+scripts/build_app.sh release
+  -> requires MODEL_REVISION to be a pinned 40-char Hugging Face SHA
+  -> bundles the pinned model into dist/Aside.app
+  -> produces the release app for scripts/package_dmg.sh
+```
+
+`Info.plist` sets `LSUIElement=false`, so Aside is a regular Dock-enabled app. It still creates a menu-bar status item for day-to-day control.
+
+## Launch Lifecycle
+
+Startup always shows something visible:
+
+- If `first_run_complete` is false or missing, Aside opens onboarding.
+- When onboarding completes, Aside persists `first_run_complete=true` and opens Settings.
+- On later launches, Aside opens Settings automatically.
+- Closing Settings withdraws the window. The app continues running until `Quit Aside` is selected from the menu bar.
 
 ## Package Structure
 
 ```
-aside/
-├── app.py                  # Legacy entry point (wraps src/)
-├── run.sh                  # Shell launcher
-├── setup.sh                # Venv + dep installer
-├── requirements.txt
-├── pyproject.toml
-├── Aside.app/              # macOS app bundle
-├── src/
-│   └── aside/
-│       ├── app.py          # Entry point
-│       ├── hotkey.py       # CGEventTap hotkey handling
-│       ├── audio.py        # Microphone capture
-│       ├── vad.py          # Voice activity detection
-│       ├── engine.py       # Whisper transcription
-│       ├── commands.py     # Voice command parser
-│       ├── dictionary.py   # Custom dictionary
-│       ├── injector.py     # Quartz text injection
-│       ├── ui.py           # customtkinter UI
-│       └── config.py       # Config management
+.
+├── Info.plist
+├── AppIcon.icns
+├── aside-logo.png
+├── setup.sh
+├── setup_py2app.py
+├── scripts/
+│   ├── build_app.sh
+│   └── package_dmg.sh
+├── src/aside/
+│   ├── __main__.py
+│   ├── config.py
+│   ├── permissions.py
+│   ├── resources.py
+│   ├── commands/
+│   ├── dictionary/
+│   ├── engine/
+│   ├── punctuation/
+│   └── ui/
 ├── tests/
-│   ├── test_engine.py
-│   ├── test_commands.py
-│   ├── test_dictionary.py
-│   └── test_injector.py
 └── docs/
-    ├── architecture.md     # This file
-    ├── voice-commands.md
-    └── custom-dictionary.md
 ```

@@ -1,5 +1,33 @@
 # Aside — CHANGELOG
 
+## 2026-04-29 — Launch visibility and install hardening
+
+- First launch now opens the permissions onboarding window, and later launches open Settings automatically, so startup never looks like a silent failure.
+- The menu-bar status item now uses the visible app icon while idle instead of a template-rendered full-bleed image that could appear blank.
+- Closing Settings no longer strands the app: macOS Dock reopen and Preferences callbacks route back to the Settings window.
+- Menu bar Settings and Permissions actions now cross into Tk through a queued handoff instead of calling Tk scheduling from AppKit callbacks, avoiding the hard Python abort seen when selecting those menu items.
+- Permission buttons now use native macOS request APIs for Accessibility and Input Monitoring before opening System Settings, and Input Monitoring checks use CoreGraphics listen-event preflight before falling back to IOKit.
+- Settings now binds trackpad/mouse-wheel events across its child widgets so two-finger scrolling works inside the panel.
+- Kept the Dock-enabled app mode (`LSUIElement=false`) from the launch branch while preserving the newer py2app install path, onboarding flow, and AppKit/Quartz dependency guards from `pyinstaller-and-more`.
+- Added build-smoke checks that fail if the built app is missing the menu-bar icon resource or regresses to menu-bar-agent bundle mode.
+- Added startup-behavior, Dock-reopen, menu-action queue, permission, and scroll-wheel regression tests; unit test count is now 118.
+- Fixed release-mode py2app bundling by raising modulegraph recursion headroom and excluding stale optional ML stacks such as Torch, Transformers, Numba, and SciPy-family packages from old developer venvs.
+- `setup.sh` now installs `create-dmg`, so the documented local `scripts/package_dmg.sh` path works after setup.
+- Updated developer docs, architecture docs, privacy notes, and the smoke-test plan to match the current source, dev bundle, and release DMG paths.
+
+## 2026-04-26 — v1.1.0: One-double-click install for non-technical users
+
+- Self-contained `Aside.app` built with py2app — no Terminal, Homebrew, or `setup.sh` required for end users.
+- Whisper `base` model bundled inside the `.app` (~140 MB) so first launch needs no network access; bundled model revision pinned to a Hugging Face commit SHA in CI for reproducible release artifacts.
+- First-launch onboarding window walks the user through Microphone, Accessibility, and Input Monitoring permissions with green/red status dots, polling every 1.5 s, and "Open Settings" deep-links into the matching Privacy pane. Onboarding requires all three permissions before letting the user dismiss it; dismissing the window without granting them re-opens it on the next launch.
+- `Permissions…` menu bar item re-opens the onboarding window on demand.
+- Mic-denied path now surfaces the onboarding window instead of failing silently.
+- Local DMG packaging (`scripts/package_dmg.sh`) with ad-hoc codesigning that preserves any upstream Developer ID signature.
+- GitHub Actions release workflow (`.github/workflows/release.yml`) builds, ad-hoc signs, packages a DMG, and attaches it to a tag-triggered GitHub Release. Notarization steps stubbed in for after Apple Developer enrollment.
+- README adds a Download section and right-click → Open first-launch instructions.
+- Removed the committed `Aside.app/` shell launcher; end users get the `.dmg` from Releases, contributors continue to use `setup.sh`.
+- `LSMinimumSystemVersion` set to 11.0; arm64-only target.
+
 ## 2026-04-24 — v1.0.1: Reliability fixes
 
 - Fixed voice-command sequencing: punctuation and line-break commands now render inline with the dictated text instead of being injected before the transcript.

@@ -1,4 +1,5 @@
 from aside.commands.parser import Command
+from aside.engine import transcriber as transcriber_module
 from aside.engine.transcriber import Transcriber
 
 
@@ -80,3 +81,15 @@ def test_transcriber_executes_actions_without_punctuation_commands(monkeypatch, 
 
     assert injected == []
     assert executed == [Command.DELETE_THAT]
+
+
+def test_load_model_reports_actionable_error_when_faster_whisper_missing(monkeypatch):
+    statuses = []
+    transcriber = Transcriber(on_status=statuses.append)
+    monkeypatch.setattr(transcriber_module, "WhisperModel", None)
+
+    transcriber.load_model()
+
+    assert statuses == [
+        "error: faster-whisper is not installed. Install dependency: pip install faster-whisper"
+    ]

@@ -10,29 +10,60 @@ import queue
 import threading
 from typing import Callable, Optional
 
-from Quartz import (
-    CGEventTapCreate,
-    CGEventTapEnable,
-    CGEventGetIntegerValueField,
-    CGEventGetFlags,
-    kCGSessionEventTap,
-    kCGHeadInsertEventTap,
-    kCGEventKeyDown,
-    kCGEventKeyUp,
-    kCGEventFlagsChanged,
-    kCGKeyboardEventKeycode,
-    kCGEventFlagMaskControl,
-    kCGEventFlagMaskAlternate,
-    kCGEventFlagMaskCommand,
-    kCGEventFlagMaskShift,
-    kCGEventTapDisabledByTimeout,
-    CFMachPortCreateRunLoopSource,
-    CFRunLoopGetCurrent,
-    CFRunLoopAddSource,
-    CFRunLoopRun,
-    CFRunLoopStop,
-    kCFRunLoopCommonModes,
-)
+try:
+    from Quartz import (
+        CGEventTapCreate,
+        CGEventTapEnable,
+        CGEventGetIntegerValueField,
+        CGEventGetFlags,
+        kCGSessionEventTap,
+        kCGHeadInsertEventTap,
+        kCGEventKeyDown,
+        kCGEventKeyUp,
+        kCGEventFlagsChanged,
+        kCGKeyboardEventKeycode,
+        kCGEventFlagMaskControl,
+        kCGEventFlagMaskAlternate,
+        kCGEventFlagMaskCommand,
+        kCGEventFlagMaskShift,
+        kCGEventTapDisabledByTimeout,
+        CFMachPortCreateRunLoopSource,
+        CFRunLoopGetCurrent,
+        CFRunLoopAddSource,
+        CFRunLoopRun,
+        CFRunLoopStop,
+        kCFRunLoopCommonModes,
+    )
+    QUARTZ_AVAILABLE = True
+except ImportError:
+    # Allow import/use of non-Quartz helpers in headless or non-macOS tests.
+    # Callables stay None (never invoked when QUARTZ_AVAILABLE is False), while
+    # constants remain ints so parse_hotkey/hotkeys_equal can still operate.
+    CGEventTapCreate = None
+    CGEventTapEnable = None
+    CGEventGetIntegerValueField = None
+    CGEventGetFlags = None
+    CFMachPortCreateRunLoopSource = None
+    CFRunLoopGetCurrent = None
+    CFRunLoopAddSource = None
+    CFRunLoopRun = None
+    CFRunLoopStop = None
+
+    kCGSessionEventTap = 0
+    kCGHeadInsertEventTap = 0
+    kCGEventKeyDown = 10
+    kCGEventKeyUp = 11
+    kCGEventFlagsChanged = 12
+    kCGKeyboardEventKeycode = 0
+    # Keep fallback modifier masks aligned with Quartz bit positions.
+    kCGEventFlagMaskControl = 1 << 18
+    kCGEventFlagMaskAlternate = 1 << 19
+    kCGEventFlagMaskCommand = 1 << 20
+    kCGEventFlagMaskShift = 1 << 17
+    kCGEventTapDisabledByTimeout = -1
+    kCFRunLoopCommonModes = None
+
+    QUARTZ_AVAILABLE = False
 
 DEFAULT_HOTKEY = {"modifiers": ["ctrl", "alt"], "trigger": "space"}
 ACCESSIBILITY_ERROR = (
@@ -131,9 +162,17 @@ class HotkeyManager:
         self._on_event = on_event or (lambda *_: None)
         self._capture_callback: Callable[[dict], None] | None = None
 
-        self._install_event_tap(on_accessibility_error)
+        if QUARTZ_AVAILABLE:
+            self._install_event_tap(on_accessibility_error)
+        elif on_accessibility_error:
+            on_accessibility_error()
 
     def _install_event_tap(self, on_error: Callable | None) -> None:
+        if CGEventTapCreate is None:
+            if on_error:
+                on_error()
+            return
+
         event_mask = (
             (1 << kCGEventKeyDown)
             | (1 << kCGEventKeyUp)

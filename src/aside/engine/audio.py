@@ -6,7 +6,7 @@ stream.stop() MUST be called from a background thread (it blocks).
 import logging
 import numpy as np
 import sounddevice as sd
-from typing import Optional
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -16,10 +16,11 @@ SAMPLE_RATE = 16000
 class AudioCapture:
     """Manages audio recording sessions."""
 
-    def __init__(self):
+    def __init__(self, on_mic_denied: Optional[Callable[[], None]] = None):
         self._stream: Optional[sd.InputStream] = None
         self._chunks: list = []
         self._recording = False
+        self._on_mic_denied = on_mic_denied
 
     @property
     def is_recording(self) -> bool:
@@ -29,6 +30,14 @@ class AudioCapture:
         """Start recording. Returns True on success."""
         if self._recording:
             return False
+
+        from aside.permissions import check_microphone, PermissionStatus
+        if check_microphone() == PermissionStatus.DENIED:
+            logger.warning("Microphone access denied")
+            if self._on_mic_denied:
+                self._on_mic_denied()
+            return False
+
         self._chunks = []
         self._recording = True
 

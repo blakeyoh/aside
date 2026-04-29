@@ -25,24 +25,20 @@ class NumberMode:
     """
 
     def __init__(self) -> None:
-        self._active = False
-
-    @property
-    def is_active(self) -> bool:
-        return self._active
+        self.active = False
 
     def activate(self) -> None:
-        self._active = True
+        self.active = True
 
     def deactivate(self) -> None:
-        self._active = False
+        self.active = False
 
     def reset(self) -> None:
-        self._active = False
+        self.active = False
 
     def process(self, text: str) -> str:
         """Convert number words to digits if active. Pass through unchanged if not."""
-        if not self._active:
+        if not self.active:
             return text
 
         words = text.lower().split()

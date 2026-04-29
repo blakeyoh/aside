@@ -19,12 +19,19 @@ DEFAULT_HOTKEY = {"modifiers": ["ctrl", "alt"], "trigger": "space"}
 DEFAULT_CONFIG: dict[str, Any] = {
     "model_size": "base",
     "language": None,
+    "first_run_complete": False,
     "hotkey": DEFAULT_HOTKEY.copy(),
     "toggle_hotkey": None,
     "punctuation": {
         "capitalization": "sentence",
         "smart_quotes": False,
         "trailing_space": True,
+    },
+    "hotwords": [],
+    "replacements": {
+        "alright": "all right",
+        "Alright": "All right",
+        "nevermind": "never mind",
     },
 }
 

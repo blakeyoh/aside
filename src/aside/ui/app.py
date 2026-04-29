@@ -11,10 +11,9 @@ Threading model:
 """
 import fcntl
 import logging
-import os
+import queue
 import sys
 import threading
-from pathlib import Path
 
 import customtkinter as ctk
 
@@ -30,14 +29,57 @@ from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
 from aside.engine.audio import AudioCapture
 from aside.engine.hotkeys import HotkeyManager, hotkeys_equal, parse_hotkey
 from aside.engine.transcriber import Transcriber
+from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
+from aside.ui.onboarding import OnboardingWindow
 from aside.ui.settings import build_settings
 from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
 
 logger = logging.getLogger(__name__)
 
-ICON_PATH = Path(__file__).resolve().parent.parent.parent.parent / "aside-logo.png"
+ICON_PATH = resource_path("aside-logo.png")
 LOCK_FILE = CONFIG_DIR / "aside.lock"
+UI_ACTION_SHOW_SETTINGS = "show_settings"
+UI_ACTION_SHOW_ONBOARDING = "show_onboarding"
+
+
+def initial_launch_target(config: dict) -> str:
+    """Return the first visible surface to show after startup."""
+    return "settings" if config.get("first_run_complete") else "onboarding"
+
+
+def register_macos_reopen_handlers(root, callback) -> tuple[str, ...]:
+    """Register Tk macOS app-menu callbacks that reopen the settings window."""
+    if sys.platform != "darwin":
+        return ()
+
+    registered = []
+    for command_name in ("tk::mac::ReopenApplication", "tk::mac::ShowPreferences"):
+        try:
+            root.createcommand(command_name, callback)
+            registered.append(command_name)
+        except Exception:
+            logger.debug("Unable to register %s", command_name, exc_info=True)
+    return tuple(registered)
+
+
+def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
+    """Convert a Tk MouseWheel delta into conservative canvas scroll units."""
+    try:
+        numeric_delta = float(delta)
+    except (TypeError, ValueError):
+        return 0
+
+    if numeric_delta == 0:
+        return 0
+
+    if platform.startswith("win"):
+        magnitude = int(abs(numeric_delta) / 120)
+    else:
+        magnitude = int(abs(numeric_delta))
+
+    magnitude = max(1, min(magnitude, 12))
+    return -magnitude if numeric_delta > 0 else magnitude
 
 
 def _acquire_lock():
@@ -95,6 +137,8 @@ class App(ctk.CTk):
         self._state = "loading"  # loading → ready → recording → transcribing
         self._toggle_active = False  # toggle-hotkey recording mode
         self._hotkey_poll_failed = False
+        self._is_quitting = False
+        self._ui_actions: queue.Queue[str] = queue.Queue()
 
         # ── Status bar (top of window) ───────────────────────────────────
         status_frame = ctk.CTkFrame(self, fg_color=BG, corner_radius=0)
@@ -121,7 +165,9 @@ class App(ctk.CTk):
         # ── Settings panel (scrollable) ──────────────────────────────────
         scroll = ctk.CTkScrollableFrame(self, fg_color=BG, corner_radius=0)
         scroll.pack(fill="both", expand=True, padx=16, pady=(10, 12))
+        self._settings_scroll_canvas = getattr(scroll, "_parent_canvas", None)
         self._widgets = build_settings(self, scroll)
+        self._bind_settings_mousewheel(scroll)
 
         # ── Wire settings button callbacks ───────────────────────────────
         self._widgets["apply_btn"].configure(command=self._on_apply)
@@ -134,12 +180,17 @@ class App(ctk.CTk):
         self._widgets["rep_add_btn"].configure(command=self._on_add_replacement)
         self._widgets["reload_btn"].configure(command=self._on_reload_dictionary)
 
+        # ── Onboarding window reference ──────────────────────────────────
+        self._onboarding: OnboardingWindow | None = None
+
         # ── Engine components ────────────────────────────────────────────
-        self._audio = AudioCapture()
+        self._audio = AudioCapture(on_mic_denied=self._on_mic_denied)
         self._transcriber = Transcriber(
             model_size=self.cfg["model_size"],
             language=self.cfg.get("language"),
             punctuation_config=self.cfg.get("punctuation"),
+            hotwords=self.cfg.get("hotwords"),
+            replacements=self.cfg.get("replacements"),
             on_status=self._on_engine_status,
             on_transcription=self._on_transcription,
         )
@@ -157,16 +208,20 @@ class App(ctk.CTk):
             icon_path=ICON_PATH,
             show_callback=self._request_show_settings,
             quit_callback=self._on_quit,
+            permissions_callback=self._request_show_onboarding,
         )
 
         # ── Window protocol ─────────────────────────────────────────────
         self.protocol("WM_DELETE_WINDOW", self.withdraw)
+        self._macos_reopen_commands = register_macos_reopen_handlers(
+            self, self._request_show_settings
+        )
 
         # ── Kick off engine ─────────────────────────────────────────────
         self.after_idle(self._start_engine)
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
-        if os.environ.get("ASIDE_SHOW_SETTINGS_ON_LAUNCH") == "1":
-            self.after(300, self._show_settings)
+        self._ui_action_poll_job = self.after(POLL_MS, self._poll_ui_actions)
+        self.after(300, self._show_initial_window)
 
     # ── Engine startup ───────────────────────────────────────────────────
 
@@ -192,6 +247,28 @@ class App(ctk.CTk):
                 self._show_status_message("Hotkey error; check logs")
             self._hotkey_poll_failed = True
         self._poll_job = self.after(POLL_MS, self._poll_hotkeys)
+
+    def _poll_ui_actions(self):
+        """Drain AppKit menu requests on the Tk event loop."""
+        try:
+            while True:
+                try:
+                    action = self._ui_actions.get_nowait()
+                except queue.Empty:
+                    break
+
+                try:
+                    if action == UI_ACTION_SHOW_SETTINGS:
+                        self._show_settings()
+                    elif action == UI_ACTION_SHOW_ONBOARDING:
+                        self._show_onboarding()
+                    else:
+                        logger.warning("Unknown UI action token: %s", action)
+                except Exception:
+                    logger.exception("UI action handler failed for token: %s", action)
+        finally:
+            if not self._is_quitting:
+                self._ui_action_poll_job = self.after(POLL_MS, self._poll_ui_actions)
 
     # ── Hotkey events ────────────────────────────────────────────────────
 
@@ -269,6 +346,49 @@ class App(ctk.CTk):
         logger.debug("Transcription: %s", text)
 
     # ── UI state management ─────────────────────────────────────────────
+
+    def _bind_settings_mousewheel(self, scroll):
+        """Route trackpad/mouse wheel events from settings children to the canvas."""
+        bound = set()
+
+        def bind_tree(widget):
+            if widget is None or id(widget) in bound:
+                return
+            bound.add(id(widget))
+            try:
+                widget.bind("<MouseWheel>", self._on_settings_mousewheel, add="+")
+            except Exception:
+                logger.debug("Unable to bind mouse wheel for %r", widget, exc_info=True)
+            try:
+                children = widget.winfo_children()
+            except Exception:
+                children = ()
+            for child in children:
+                bind_tree(child)
+
+        bind_tree(scroll)
+        bind_tree(getattr(scroll, "_parent_frame", None))
+        bind_tree(getattr(scroll, "_parent_canvas", None))
+        try:
+            self.bind("<MouseWheel>", self._on_settings_mousewheel, add="+")
+        except Exception:
+            logger.debug("Unable to bind mouse wheel for settings window", exc_info=True)
+
+    def _on_settings_mousewheel(self, event):
+        canvas = getattr(self, "_settings_scroll_canvas", None)
+        if canvas is None:
+            return None
+        try:
+            if canvas.yview() == (0.0, 1.0):
+                return None
+            units = scroll_units_from_delta(getattr(event, "delta", 0), sys.platform)
+            if units == 0:
+                return None
+            canvas.yview_scroll(units, "units")
+            return "break"
+        except Exception:
+            logger.debug("Settings mouse wheel event failed", exc_info=True)
+            return None
 
     def _set_status(self, state: str):
         """Update status indicator. Must be called on main thread."""
@@ -418,8 +538,42 @@ class App(ctk.CTk):
     # ── Menu bar / window management ─────────────────────────────────────
 
     def _request_show_settings(self):
-        """Schedule settings window display on the Tk event loop."""
-        self.after(0, self._show_settings)
+        """Enqueue settings display from AppKit without touching Tk."""
+        self._ui_actions.put(UI_ACTION_SHOW_SETTINGS)
+
+    def _request_show_onboarding(self):
+        """Enqueue onboarding display from AppKit without touching Tk."""
+        self._ui_actions.put(UI_ACTION_SHOW_ONBOARDING)
+
+    def _show_initial_window(self):
+        """Show a visible launch surface so startup never looks silent."""
+        if initial_launch_target(self.cfg) == "onboarding":
+            self._show_onboarding()
+        else:
+            self._show_settings()
+
+    def _show_onboarding(self):
+        """Show (or re-show) the permissions onboarding window."""
+        if self._onboarding is not None:
+            try:
+                self._onboarding.show()
+                return
+            except Exception:
+                self._onboarding = None
+        self._onboarding = OnboardingWindow(
+            self, on_complete=self._on_onboarding_complete
+        )
+        self._onboarding.show()
+
+    def _on_onboarding_complete(self):
+        """Mark first run done and persist."""
+        self.cfg["first_run_complete"] = True
+        save_config(self.cfg)
+        self.after(100, self._show_settings)
+
+    def _on_mic_denied(self):
+        """Called by AudioCapture when mic access is denied; open onboarding."""
+        self._ui_actions.put(UI_ACTION_SHOW_ONBOARDING)
 
     def _show_settings(self):
         """Show the settings window."""
@@ -439,22 +593,19 @@ class App(ctk.CTk):
         self.focus_force()
 
     def _on_accessibility_error(self):
-        """Show alert when event tap creation fails."""
-        try:
-            from AppKit import NSAlert
-            alert = NSAlert.alloc().init()
-            alert.setMessageText_("Accessibility Permission Required")
-            alert.setInformativeText_(
-                "Aside needs Accessibility permission to detect hotkeys.\n\n"
-                "Go to System Settings → Privacy & Security → Accessibility "
-                "and add your Terminal app."
-            )
-            alert.runModal()
-        except Exception:
-            logger.error("Cannot create event tap — check Accessibility permissions")
+        """Show onboarding window when event tap creation fails."""
+        self._ui_actions.put(UI_ACTION_SHOW_ONBOARDING)
 
     def _on_quit(self):
         """Clean shutdown."""
+        self._is_quitting = True
+        for job_attr in ("_poll_job", "_ui_action_poll_job"):
+            job = getattr(self, job_attr, None)
+            if job is not None:
+                try:
+                    self.after_cancel(job)
+                except Exception:
+                    pass
         try:
             self._hotkeys.shutdown()
         except Exception:

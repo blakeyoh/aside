@@ -7,28 +7,49 @@ echo "  Aside — Setup"
 echo "============================================"
 echo ""
 
-# ── Python 3.13+ ──────────────────────────────────────────────────────────────
-PYTHON=""
+# ── Python ────────────────────────────────────────────────────────────────────
+# Aside is currently validated against a single Python minor version. To extend
+# support to a new minor release (e.g., 3.14):
+#   1. Add the new version to SUPPORTED_PYTHONS BEFORE the existing entries.
+#   2. Push and let .github/workflows/build-smoke.yml exercise the full
+#      install + py2app build path on macos-14.
+#   3. Update .github/workflows/{build-smoke,release}.yml to install the new
+#      python@X.Y + python-tk@X.Y formulas.
+#   4. Update README + docs/packaging-status.md.
+# Restricting to a known-tested allow-list catches the silently-wrong-Python
+# case (e.g., faster-whisper / ctranslate2 wheels lag behind new CPython
+# releases by weeks-to-months) before py2app eats 30 minutes of build time.
+SUPPORTED_PYTHONS=("3.13")
+DEFAULT_PYTHON_VERSION="${SUPPORTED_PYTHONS[0]}"
 
-# Prefer Homebrew Python 3.13
-for candidate in \
-    /opt/homebrew/bin/python3.13 \
-    /usr/local/bin/python3.13 \
-    python3.13 \
-    python3; do
-    if command -v "$candidate" &>/dev/null; then
-        VERSION=$("$candidate" --version 2>&1 | awk '{print $2}')
-        MAJOR=$(echo "$VERSION" | cut -d. -f1)
-        MINOR=$(echo "$VERSION" | cut -d. -f2)
-        if [ "$MAJOR" -ge 3 ] && [ "$MINOR" -ge 13 ]; then
-            PYTHON="$candidate"
-            break
+PYTHON=""
+PYTHON_MINOR_VERSION=""
+
+# Locate any supported python3.X interpreter, preferring earlier list entries.
+find_python() {
+    local ver="$1"
+    for candidate in \
+        "/opt/homebrew/bin/python${ver}" \
+        "/usr/local/bin/python${ver}" \
+        "python${ver}"; do
+        if command -v "$candidate" &>/dev/null; then
+            echo "$candidate"
+            return 0
         fi
+    done
+    return 1
+}
+
+for ver in "${SUPPORTED_PYTHONS[@]}"; do
+    if found=$(find_python "$ver"); then
+        PYTHON="$found"
+        PYTHON_MINOR_VERSION="$ver"
+        break
     fi
 done
 
 if [ -z "$PYTHON" ]; then
-    echo "⚠️   Python 3.13+ not found."
+    echo "⚠️   No supported Python found (looked for: ${SUPPORTED_PYTHONS[*]})."
     echo ""
 
     # Ensure Homebrew is available before attempting auto-install
@@ -40,19 +61,15 @@ if [ -z "$PYTHON" ]; then
         exit 1
     fi
 
-    echo "    Installing Python 3.13 via Homebrew…"
-    brew install python@3.13
+    echo "    Installing Python ${DEFAULT_PYTHON_VERSION} via Homebrew…"
+    brew install "python@${DEFAULT_PYTHON_VERSION}"
 
-    # Re-probe after install
-    for candidate in /opt/homebrew/bin/python3.13 /usr/local/bin/python3.13 python3.13; do
-        if command -v "$candidate" &>/dev/null; then
-            PYTHON="$candidate"
-            break
-        fi
-    done
+    if PYTHON=$(find_python "$DEFAULT_PYTHON_VERSION"); then
+        PYTHON_MINOR_VERSION="$DEFAULT_PYTHON_VERSION"
+    fi
 
     if [ -z "$PYTHON" ]; then
-        echo "❌  Python 3.13 install failed. Try manually: brew install python@3.13"
+        echo "❌  Python ${DEFAULT_PYTHON_VERSION} install failed. Try manually: brew install python@${DEFAULT_PYTHON_VERSION}"
         exit 1
     fi
 fi
@@ -67,13 +84,20 @@ fi
 echo "✅  Homebrew"
 
 # ── System deps ───────────────────────────────────────────────────────────────
-for pkg in portaudio; do
+# python-tk@X.Y supplies _tkinter for Homebrew python@X.Y — without it,
+# `import customtkinter` fails. Homebrew's python ships without Tk bindings;
+# they are packaged separately. The version MUST match the chosen interpreter
+# (see PYTHON_MINOR_VERSION above), otherwise the venv will create with one
+# Python but the Tk binding will load against another and `import tkinter`
+# will fail downstream.
+TK_FORMULA="python-tk@${PYTHON_MINOR_VERSION}"
+for pkg in portaudio "${TK_FORMULA}" create-dmg; do
     if ! brew list "$pkg" &>/dev/null 2>&1; then
         echo "Installing $pkg…"
         brew install "$pkg"
     fi
 done
-echo "✅  portaudio"
+echo "✅  portaudio + ${TK_FORMULA} + create-dmg"
 
 # ── Python venv ───────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -87,12 +111,38 @@ fi
 source "$VENV/bin/activate"
 echo "✅  Virtual environment"
 
+# Verify Tk is actually wired into this Python before we try to install
+# customtkinter / launch any UI. Homebrew's python@X.Y routinely ships
+# without _tkinter, in which case every UI import fails downstream with a
+# generic ImportError that's hard to trace back to here.
+if ! python3 -c "import tkinter" >/dev/null 2>&1; then
+    echo "❌  Python is missing the tkinter / _tkinter module."
+    echo "    Install the matching Homebrew Tk bindings and re-run setup:"
+    echo "      brew install ${TK_FORMULA}"
+    exit 1
+fi
+echo "✅  tkinter available"
+
 # ── Python packages ───────────────────────────────────────────────────────────
 echo ""
 echo "Installing Aside and dependencies (this takes a few minutes on first run)…"
 pip install --upgrade pip --quiet
+# Pin setuptools < 70 so py2app 0.28 (the latest release) can run.
+# Newer setuptools removed the legacy `install_requires` keyword that py2app's
+# build_app command reads; without this pin, `scripts/build_app.sh release`
+# fails with `error: install_requires is no longer supported`. wheel is needed
+# for any source-only deps installed below.
+pip install --quiet "setuptools<70" "wheel"
 pip install -e "$SCRIPT_DIR" --quiet
 echo "✅  Aside package installed (editable)"
+
+# Install the build toolchain (py2app + huggingface_hub) so that
+# scripts/build_app.sh works without manual surgery on the venv.
+# pytest is included so PF-4 in docs/smoke-test-plan.md and the build-smoke
+# CI workflow can run the unit suite without a separate install step.
+echo "Installing build + dev toolchain (py2app, huggingface_hub, pytest)…"
+pip install --quiet "py2app==0.28.10" "huggingface_hub>=0.20" "pytest>=8"
+echo "✅  Build + dev toolchain installed"
 
 # ── Config directory ──────────────────────────────────────────────────────────
 ASIDE_DIR="$HOME/.aside"
@@ -137,14 +187,18 @@ echo "Verifying installation…"
 python3 -c "
 import sys
 deps = [
-    ('faster_whisper', 'faster-whisper'),
-    ('sounddevice',    'sounddevice'),
-    ('numpy',          'numpy'),
-    ('Quartz',         'pyobjc-framework-Quartz'),
-    ('AppKit',         'pyobjc-framework-Cocoa'),
-    ('customtkinter',  'customtkinter'),
-    ('PIL',            'pillow'),
-    ('aside',          'aside'),
+    ('faster_whisper',  'faster-whisper'),
+    ('sounddevice',     'sounddevice'),
+    ('numpy',           'numpy'),
+    ('Quartz',          'pyobjc-framework-Quartz'),
+    ('AppKit',          'pyobjc-framework-Cocoa'),
+    ('AVFoundation',    'pyobjc-framework-AVFoundation'),
+    ('ApplicationServices', 'pyobjc-framework-ApplicationServices'),
+    ('customtkinter',   'customtkinter'),
+    ('PIL',             'pillow'),
+    ('aside',           'aside'),
+    ('py2app',          'py2app'),
+    ('huggingface_hub', 'huggingface_hub'),
 ]
 failed = []
 for module, pkg in deps:
@@ -160,21 +214,6 @@ if failed:
 "
 echo "✅  All dependencies verified"
 
-# ── Fix .app bundle ───────────────────────────────────────────────────────────
-# Ensure launcher is executable (git may not preserve the +x bit on all systems)
-chmod +x "$SCRIPT_DIR/Aside.app/Contents/MacOS/Aside"
-echo "✅  Launcher executable"
-
-# Clear Gatekeeper quarantine (set when files are downloaded from the internet)
-xattr -cr "$SCRIPT_DIR/Aside.app" 2>/dev/null || true
-echo "✅  Quarantine flag cleared"
-
-# Store install path so Aside.app can find the venv even if moved to /Applications
-ASIDE_DIR="$HOME/.aside"
-mkdir -p "$ASIDE_DIR"
-echo "$SCRIPT_DIR" > "$ASIDE_DIR/install_path.txt"
-echo "✅  Install path registered: $SCRIPT_DIR"
-
 # ── Permissions reminder ──────────────────────────────────────────────────────
 echo ""
 echo "============================================"
@@ -189,18 +228,22 @@ echo "  • Microphone       → add Terminal (or iTerm2 / Warp / whichever you 
 echo "  • Accessibility    → add Terminal (same app you ran this script from)"
 echo "  • Input Monitoring → add Terminal (same app)"
 echo ""
-echo "If you launch via Finder (Option A below), also add Aside.app to each list."
 echo "macOS may prompt automatically on first use — click Allow when it does."
 echo ""
 echo "─────────────────────────────────────────────"
 echo ""
 echo "To launch:"
 echo ""
-echo "  Option A — double-click Aside.app in Finder"
-echo "    (drag it to your Dock for quick access)"
-echo ""
-echo "  Option B — Terminal:"
+echo "  Terminal:"
 echo "    source .venv/bin/activate && python -m aside"
+echo ""
+echo "  Or build a packaged .app for local preview:"
+echo "    scripts/build_app.sh dev       # alias build, no SHA needed"
+echo ""
+echo "  Reproduce a CI release build (requires a pinned model SHA):"
+echo "    MODEL_REVISION=\$(git ls-remote https://huggingface.co/Systran/faster-whisper-base main | cut -f1) \\"
+echo "      scripts/build_app.sh release"
+echo "    scripts/package_dmg.sh         # wraps dist/Aside.app in a DMG"
 echo ""
 echo "Hotkey: hold  Ctrl + Option + Space  to record, release to transcribe."
 echo ""

@@ -3,16 +3,27 @@
 Injects text at the current cursor position using CGEventCreateKeyboardEvent.
 Does NOT touch the clipboard. Works in any text field system-wide.
 """
-from Quartz import (
-    CGEventCreateKeyboardEvent,
-    CGEventKeyboardSetUnicodeString,
-    CGEventPost,
-    CGEventSetFlags,
-    CGEventSourceCreate,
-    kCGEventSourceStateHIDSystemState,
-    kCGHIDEventTap,
-    kCGEventFlagMaskCommand,
-)
+try:
+    from Quartz import (
+        CGEventCreateKeyboardEvent,
+        CGEventKeyboardSetUnicodeString,
+        CGEventPost,
+        CGEventSetFlags,
+        CGEventSourceCreate,
+        kCGEventSourceStateHIDSystemState,
+        kCGHIDEventTap,
+        kCGEventFlagMaskCommand,
+    )
+except ImportError:
+    # Allow unit tests to run on non-macOS/headless environments
+    CGEventCreateKeyboardEvent = None
+    CGEventKeyboardSetUnicodeString = None
+    CGEventPost = None
+    CGEventSetFlags = None
+    CGEventSourceCreate = None
+    kCGEventSourceStateHIDSystemState = None
+    kCGHIDEventTap = None
+    kCGEventFlagMaskCommand = None
 
 # Virtual keycodes for special keys
 _KEYCODE_MAP = {

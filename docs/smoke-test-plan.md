@@ -30,12 +30,12 @@ Before running any test, establish the known baseline.
 
 - [ ] **PF-3: Verify package installation**
   - Run: `.venv/bin/python3 -c "import aside; print(aside.__version__)"`
-  - Expected: `1.0.1`
+  - Expected: `1.1.0`
   - **GATE:** If import fails, run `pip install -e .` and retry.
 
 - [ ] **PF-4: Verify unit tests**
   - Run: `.venv/bin/python3 -m pytest tests/ -v`
-  - Expected: `77 passed`
+  - Expected: `118 passed`
   - **GATE:** If any fail, fix before proceeding. Do not smoke test a broken build.
 
 - [ ] **PF-5: Verify macOS permissions**
@@ -58,7 +58,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 ### T1.1: First Launch (setup.sh)
 
 - [ ] Run: `./setup.sh`
-- [ ] Expected: venv created, deps installed, base model downloaded
+- [ ] Expected: venv created, deps installed, `create-dmg` installed, base model downloaded
 - [ ] Watch for: any pip errors, model download failures, permission prompts
 - [ ] **Result:** ________________________________________
 - [ ] **Non-conformance notes:** ________________________
@@ -66,12 +66,28 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 ### T1.2: Terminal Launch
 
 - [ ] Run: `.venv/bin/python3 -m aside`
-- [ ] Expected: NO window appears. Menu bar shows Aside microphone icon.
+- [ ] Expected: Permissions onboarding appears because PF-1 removed `~/.aside`. Menu bar shows Aside microphone icon.
 - [ ] Verify: menu bar icon is visible in top-right area
-- [ ] **GATE:** If window appears on launch, quiet-launch is broken.
+- [ ] **GATE:** If neither onboarding nor Settings appears, launch visibility is broken.
 - [ ] **Result:** ________________________________________
 
-### T1.3: Settings Window
+### T1.3: First-Launch Onboarding (Permissions Gate)
+
+- [ ] Ensure clean state: `rm -rf ~/.aside` and revoke Microphone, Accessibility, and Input Monitoring for Terminal in System Settings
+- [ ] Launch: `.venv/bin/python3 -m aside`
+- [ ] Expected: Welcome / Permissions window appears with three rows (Microphone, Accessibility, Input Monitoring), all dots red
+- [ ] Expected: "Get Started" button is **disabled** while any permission is still red
+- [ ] Click "Open Settings" on each row → System Settings deep-links into the matching Privacy pane
+- [ ] Grant Microphone → row dot turns green within ~1.5 s
+- [ ] Grant Input Monitoring → row dot turns green
+- [ ] Grant Accessibility → row dot turns green; restart Aside if macOS requires it
+- [ ] After all three are green, "Get Started" becomes enabled and turns green
+- [ ] Click "Get Started" → onboarding closes and Settings opens
+- [ ] Verify: `cat ~/.aside/config.json | grep first_run_complete` shows `true`
+- [ ] If Accessibility or Input Monitoring still shows red even though System Settings shows Aside enabled, remove the old Aside entry from that privacy pane, add the rebuilt `dist/Aside.app` again, then quit and relaunch Aside. Local dev bundles are ad-hoc signed, so stale TCC entries can look enabled while the rebuilt app still reads denied.
+- [ ] **Result:** ________________________________________
+
+### T1.4: Settings Window
 
 - [ ] Click menu bar icon → click "Settings..."
 - [ ] Expected: Settings window appears, centered on screen
@@ -80,14 +96,54 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Verify: Dictionary section shows "0 / 50 terms"
 - [ ] **Result:** ________________________________________
 
-### T1.3a: Finder/Dock Launch
+### T1.5: Subsequent Terminal Launch
 
-- [ ] Double-click `Aside.app`
-- [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
-- [ ] Expected: no Dock running dot; Aside is configured as a menu-bar agent app
+- [ ] Quit Aside from the menu bar
+- [ ] Run: `.venv/bin/python3 -m aside`
+- [ ] Expected: Settings opens automatically and menu bar shows Aside microphone icon
 - [ ] **Result:** ________________________________________
 
-### T1.4: Window Hide (not Quit)
+### T1.6: Developer App Build and Finder/Dock Launch
+
+- [ ] Quit Aside from the menu bar
+- [ ] Run: `source .venv/bin/activate && scripts/build_app.sh dev`
+- [ ] Verify: `dist/Aside.app/Contents/Resources/aside-logo.png` exists
+- [ ] Verify: `/usr/libexec/PlistBuddy -c "Print :LSUIElement" dist/Aside.app/Contents/Info.plist` prints `false`
+- [ ] Double-click `dist/Aside.app`
+- [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
+- [ ] Expected: Aside appears as a regular app (Dock icon/running indicator may be visible)
+- [ ] **Result:** ________________________________________
+
+### T1.7: Release DMG Build
+
+- [ ] Set `MODEL_REVISION` to a pinned 40-character SHA from `git ls-remote https://huggingface.co/Systran/faster-whisper-base main`
+- [ ] Run: `MODEL_REVISION=<sha> scripts/build_app.sh release`
+- [ ] Run: `scripts/package_dmg.sh`
+- [ ] Expected: `dist/Aside-1.1.0.dmg` exists and contains `Aside.app`
+- [ ] Install from the DMG into `/Applications`
+- [ ] Double-click `/Applications/Aside.app`
+- [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
+- [ ] Expected: Aside appears as a regular app (Dock icon/running indicator may be visible)
+- [ ] **Result:** ________________________________________
+
+### T1.8: Onboarding Dismissal Without Grants Re-prompts
+
+- [ ] Reset state: `rm -rf ~/.aside` and revoke all three permissions
+- [ ] Launch Aside
+- [ ] Click the window's red "X" close button without granting anything
+- [ ] Expected: window closes; `~/.aside/config.json` either does not exist or has `first_run_complete: false`
+- [ ] Quit and relaunch Aside
+- [ ] Expected: onboarding window reappears (does NOT silently skip into a broken state)
+- [ ] **CRITICAL:** This protects users from leaving onboarding without working hotkeys/recording.
+- [ ] **Result:** ________________________________________
+
+### T1.9: Permissions Menu Item Re-Opens Onboarding
+
+- [ ] After completing T1.3, click the menu bar icon → "Permissions…"
+- [ ] Expected: Permissions window reappears with current statuses
+- [ ] **Result:** ________________________________________
+
+### T1.10: Window Hide (not Quit)
 
 - [ ] Click the X (close) button on the Settings window
 - [ ] Expected: Window disappears. App continues running (menu bar icon still visible).
@@ -95,21 +151,21 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] **CRITICAL:** If the app quits on close, the lifecycle is broken.
 - [ ] **Result:** ________________________________________
 
-### T1.5: Quit
+### T1.11: Quit
 
 - [ ] Click menu bar icon → "Quit Aside"
 - [ ] Expected: App terminates cleanly. Menu bar icon disappears.
 - [ ] Verify: no orphan processes: `ps aux | grep aside`
 - [ ] **Result:** ________________________________________
 
-### T1.6: Single Instance Guard
+### T1.12: Single Instance Guard
 
 - [ ] Launch Aside: `.venv/bin/python3 -m aside`
 - [ ] In a second terminal, launch again: `.venv/bin/python3 -m aside`
 - [ ] Expected: Second instance shows alert dialog, then exits
 - [ ] **Result:** ________________________________________
 
-### T1.7: Config Migration (if applicable)
+### T1.13: Config Migration (if applicable)
 
 - [ ] If `~/Library/Application Support/HushedHippo/config.json` exists:
   - Remove `~/.aside` directory

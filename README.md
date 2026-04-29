@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/)
-[![macOS](https://img.shields.io/badge/macOS-14%2B-lightgrey.svg)](https://www.apple.com/macos/)
+[![macOS](https://img.shields.io/badge/macOS-11%2B%20arm64-lightgrey.svg)](https://www.apple.com/macos/)
 
 Aside is a local-first voice dictation app for macOS. It uses OpenAI's Whisper model running entirely on your machine — no subscriptions, no cloud APIs, no audio ever leaving your computer. Hold a hotkey to dictate, release to transcribe, and your words appear wherever your cursor is.
 
@@ -21,9 +21,19 @@ Your audio never leaves your Mac. Aside makes zero network calls during normal o
 - **Auto-punctuation** — Whisper infers punctuation from speech patterns
 - **Menubar app** — lives in your menubar, out of your way
 
-## Quick Start
+## Download
 
-**Requirements:** macOS 14+, Homebrew. Python 3.13 is installed automatically if missing.
+Download the latest `Aside-x.x.x.dmg` from the [Releases page](https://github.com/blakeyoh/aside/releases). Open the DMG, drag Aside to Applications, then double-click to launch.
+
+> **First launch:** macOS may show "Apple could not verify…" because Aside is ad-hoc signed, not notarized. **Right-click Aside.app → Open → Open** to bypass this once. After that it opens normally.
+
+Aside includes the base Whisper model in the release app, so first launch does not need Terminal, Homebrew, Python, or a model download. It will walk you through granting the three required permissions: Microphone, Accessibility, and Input Monitoring.
+
+---
+
+## Developer Setup
+
+**Requirements:** macOS 11+ (Apple Silicon), Homebrew. Python 3.13 is installed automatically if missing.
 
 ```bash
 git clone https://github.com/blakeyoh/aside.git
@@ -31,7 +41,7 @@ cd aside
 ./setup.sh
 ```
 
-`setup.sh` installs all dependencies, downloads the Whisper `base` model (~140 MB, one-time), and prepares `Aside.app`. This takes a few minutes on first run.
+`setup.sh` installs all dependencies, downloads the Whisper `base` model (~140 MB, one-time), and prepares the local Python environment. This takes a few minutes on first run.
 
 ### Grant permissions (required)
 
@@ -47,18 +57,21 @@ macOS will prompt for most of these on first use — click **Allow**.
 
 ### Launch
 
-Double-click `Aside.app` in the project folder, or drag it to your Dock first. You can also move it to `/Applications` after running `setup.sh`. Finder/Dock launch opens Settings once so you can confirm Aside started; terminal launch starts hidden and is controlled from the menu bar.
-
 ```bash
-# Terminal alternative
 source .venv/bin/activate && python -m aside
 ```
 
-A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
+First launch shows the permissions onboarding window. After permissions are complete, terminal and app launches open Settings so startup is visible and easy to validate. A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
 
-> **First launch on a new machine:** macOS may show a security prompt the first time you open `Aside.app`. Right-click → Open → Open to bypass it, or run `setup.sh` first (it clears the quarantine flag automatically).
+To build a local `.app` for developer testing:
 
-On first launch, Aside downloads the Whisper model (~140 MB for `base`). This is a one-time download — after that, no network access occurs.
+```bash
+source .venv/bin/activate
+scripts/build_app.sh dev
+open dist/Aside.app
+```
+
+Developer mode downloads the Whisper model once into the local cache. Release DMGs bundle the model inside `Aside.app`, so normal app use makes no network calls.
 
 ## Aside vs. Wispr Flow
 
@@ -81,6 +94,14 @@ Wispr Flow is faster and more accurate — if privacy isn't a concern, it's a gr
 Aside recognizes 12 voice commands for formatting and editing. Say them naturally as part of your dictation — Aside strips them from the output and applies the action inline. Spoken punctuation commands take priority at their location, while Whisper punctuation elsewhere is preserved.
 
 See [docs/voice-commands.md](docs/voice-commands.md) for the full reference.
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Custom dictionary](docs/custom-dictionary.md)
+- [Manual smoke test plan](docs/smoke-test-plan.md)
+- [Packaging status](docs/packaging-status.md)
+- [Launch conflict resolution](docs/launch-conflict-resolution-2026-04-29.md)
 
 ## Contributing
 
