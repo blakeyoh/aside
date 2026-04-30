@@ -157,8 +157,7 @@ jobs:
 
           # 143 = SIGTERM from watchdog (healthy long-running UI app)
           # 0   = clean exit
-          # else = investigate. We only hard-fail on explicit crash signatures
-          # or missing required bundle artifacts.
+          # Anything else is an unexpected startup failure.
           if [[ "$rc" == "0" || "$rc" == "143" ]]; then
             echo "OK rc=$rc (clean exit or watchdog timeout)"
             exit 0
@@ -169,13 +168,7 @@ jobs:
             exit 1
           fi
 
-          if [[ -f dist/Aside.app/Contents/MacOS/Aside ]] && \
-             [[ -f dist/Aside.app/Contents/Resources/faster-whisper-base/model.bin ]]; then
-            echo "::warning::Aside exited rc=$rc without traceback; likely CI GUI bootstrap limitation. Structural checks passed."
-            exit 0
-          fi
-
-          echo "::error::Aside exited rc=$rc and required bundle artifacts are missing"
+          echo "::error::Aside Mach-O exited rc=$rc — unexpected non-zero startup failure"
           exit 1
 
       - name: Upload DMG as build artifact
