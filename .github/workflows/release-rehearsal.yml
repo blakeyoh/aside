@@ -61,7 +61,7 @@ jobs:
         # transcription.
         run: |
           set -euo pipefail
-          MODEL_DIR=dist/Aside.app/Contents/Resources/vendor/models/faster-whisper-base
+          MODEL_DIR=dist/Aside.app/Contents/Resources/faster-whisper-base
           test -d "$MODEL_DIR"
           test -f "$MODEL_DIR/model.bin"
           test -f "$MODEL_DIR/tokenizer.json"
