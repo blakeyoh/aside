@@ -19,10 +19,6 @@ class ContextBuffer:
         if stripped:
             self._buffer.append(stripped)
 
-    def reset(self) -> None:
-        """Clear the context buffer."""
-        self._buffer.clear()
-
     def build_initial_prompt(self, hotwords: list[str]) -> str:
         """Build initial_prompt from glossary terms + rolling context.
 
