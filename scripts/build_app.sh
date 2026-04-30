@@ -17,8 +17,8 @@ set -euo pipefail
 #   git ls-remote https://huggingface.co/Systran/faster-whisper-base main
 #
 # Release builds reject "main" / non-SHA values to guarantee reproducibility.
-MODEL_REVISION="${MODEL_REVISION:-main}"
-
+# Dev builds default to "main" so contributors can iterate without thinking
+# about pins.
 MODE="${1:-release}"
 
 if [[ "$MODE" != "dev" && "$MODE" != "release" ]]; then
@@ -27,13 +27,28 @@ if [[ "$MODE" != "dev" && "$MODE" != "release" ]]; then
 fi
 
 # Release artifacts must be reproducible — refuse to build against a
-# moving branch. Dev builds may use "main" for fast iteration.
+# moving branch. Distinguish empty (env var unset / CI variable missing)
+# from "set, but not a SHA" — the two have very different fixes and we just
+# spent a release cycle on confusing the maintainer about which it was.
 if [[ "$MODE" == "release" ]]; then
+  if [[ -z "${MODEL_REVISION:-}" ]]; then
+    echo "ERROR: MODEL_REVISION is unset or empty."
+    echo "       Release builds require a 40-char Hugging Face commit SHA."
+    echo ""
+    echo "If running in CI, the workflow's env: block did not provide a value."
+    echo "If running locally, set it explicitly:"
+    echo "  MODEL_REVISION=<sha> scripts/build_app.sh release"
+    echo ""
+    echo "Look up the latest SHA with:"
+    echo "  git ls-remote https://huggingface.co/Systran/faster-whisper-base main"
+    exit 1
+  fi
   if [[ ! "$MODEL_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
-    echo "ERROR: release builds require MODEL_REVISION pinned to a 40-char commit SHA."
+    echo "ERROR: MODEL_REVISION is set but not a 40-char commit SHA."
     echo "       Current value: '${MODEL_REVISION}'"
     echo ""
-    echo "Look up the latest SHA:"
+    echo "Release builds reject branch names (e.g. 'main') so artifacts are"
+    echo "byte-reproducible. Look up the latest SHA with:"
     echo "  git ls-remote https://huggingface.co/Systran/faster-whisper-base main"
     echo ""
     echo "Then re-run:"
@@ -41,6 +56,9 @@ if [[ "$MODE" == "release" ]]; then
     exit 1
   fi
 fi
+
+# Dev mode: default to tracking main if no pin was provided.
+MODEL_REVISION="${MODEL_REVISION:-main}"
 
 if [[ ! -f "setup_py2app.py" ]]; then
   echo "Run this script from the repository root."

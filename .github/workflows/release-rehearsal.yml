@@ -1,0 +1,158 @@
+name: Release rehearsal
+
+# Manual dry-run of the release pipeline. Builds the same release-mode
+# Aside.app + DMG that release.yml would, but stops short of creating a
+# GitHub Release. Surfaces failures (dylib closure, codesign, DMG packaging,
+# bundle launch) BEFORE a tag is pushed — every fix here saves a tag.
+#
+# Trigger from the Actions tab → "Release rehearsal" → "Run workflow".
+# Inspect the uploaded DMG artifact, drag-install on a Mac, and walk
+# through docs/smoke-test-plan.md before tagging.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rehearsal:
+    runs-on: macos-14  # Apple Silicon — matches arm64-only build target
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew dependencies
+        # Mirrors release.yml. Keep in lockstep with SUPPORTED_PYTHONS in setup.sh.
+        run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
+
+      - name: Set up Python environment
+        run: |
+          python3.13 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install "setuptools<70" wheel
+          .venv/bin/pip install "py2app==0.28.10" "huggingface_hub>=0.20"
+          .venv/bin/pip install -e .
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Build Aside.app (release mode)
+        # MODEL_REVISION must match the value pinned in release.yml so the
+        # rehearsal exercises the same artifact bytes that a real tag would.
+        env:
+          MODEL_REVISION: ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
+        run: scripts/build_app.sh release
+
+      - name: Audit dylib closure (non-portable path detector)
+        # Catches the most likely "first failure" in non-alias mode: native
+        # extensions that link against /opt/homebrew or /usr/local paths
+        # which exist on the runner but not on a user's Mac.
+        run: |
+          set -euo pipefail
+          BAD=0
+          while IFS= read -r ext; do
+            [ -f "$ext" ] || continue
+            if otool -L "$ext" | tail -n +2 | grep -E '^[[:space:]]+(/opt/homebrew|/usr/local)/'; then
+              echo "::error file=$ext::native ext links to non-portable Homebrew path"
+              BAD=1
+            fi
+          done < <(find dist/Aside.app/Contents/Resources/lib -type f \( -name '*.so' -o -name '*.dylib' \) 2>/dev/null)
+          test "$BAD" = 0
+
+      - name: Verify bundled model snapshot
+        # Catches partial / 0-byte HuggingFace downloads that py2app would
+        # otherwise happily bundle, producing an app that crashes on first
+        # transcription.
+        run: |
+          set -euo pipefail
+          MODEL_DIR=dist/Aside.app/Contents/Resources/vendor/models/faster-whisper-base
+          test -d "$MODEL_DIR"
+          test -f "$MODEL_DIR/model.bin"
+          test -f "$MODEL_DIR/tokenizer.json"
+          test -f "$MODEL_DIR/config.json"
+          # Reasonable lower bound for the base model (~140 MB).
+          SIZE=$(stat -f%z "$MODEL_DIR/model.bin")
+          echo "model.bin size: $SIZE bytes"
+          test "$SIZE" -gt 100000000
+
+      - name: Codesign (ad-hoc)
+        # Identical to release.yml. Must run before "Verify codesign" below
+        # so the verification reflects what users will receive.
+        run: |
+          codesign --deep --force --sign - \
+            --entitlements entitlements.plist dist/Aside.app
+
+      - name: Verify codesign
+        # `codesign --force` exits 0 even if it produced a malformed signature;
+        # --verify --strict is what actually catches that.
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/Aside.app
+          codesign -dv --entitlements - dist/Aside.app
+          # Note: `spctl --assess` is intentionally NOT run — ad-hoc signatures
+          # fail Gatekeeper by design until Developer ID enrollment is complete.
+
+      - name: Package DMG
+        run: scripts/package_dmg.sh
+
+      - name: Verify DMG (mount + structural)
+        # `hdiutil verify` confirms the DMG is not corrupt; mounting + listing
+        # confirms the staging-dir trick in package_dmg.sh actually placed
+        # Aside.app at the DMG root.
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=( dist/Aside-*.dmg )
+          test "${#DMGS[@]}" -eq 1
+          DMG="${DMGS[0]}"
+          echo "DMG: $DMG"
+          hdiutil verify "$DMG"
+          MOUNT=$(hdiutil attach "$DMG" -nobrowse -readonly | tail -1 | awk '{print $3}')
+          echo "Mounted at: $MOUNT"
+          test -d "$MOUNT/Aside.app"
+          test -f "$MOUNT/Aside.app/Contents/MacOS/Aside"
+          test -f "$MOUNT/Aside.app/Contents/Info.plist"
+          hdiutil detach "$MOUNT"
+
+      - name: Confirm DMG name matches src/aside __version__
+        # Same alignment check release.yml runs against the git tag, but here
+        # we compare to the file produced by package_dmg.sh (which derives its
+        # name from __version__). A mismatch means the upload glob in
+        # release.yml would silently match nothing.
+        run: |
+          set -euo pipefail
+          PYVER=$(python -c "import sys; sys.path.insert(0,'src'); from aside import __version__; print(__version__)")
+          DMG_NAME=$(basename dist/Aside-*.dmg)
+          echo "src/aside/__init__.py __version__ = $PYVER"
+          echo "DMG filename                       = $DMG_NAME"
+          test "$DMG_NAME" = "Aside-${PYVER}.dmg"
+
+      - name: Smoke-launch bundle
+        # Confirm the bundled Mach-O actually starts: catches dyld errors
+        # and import-time crashes that py2app's static analysis missed.
+        # The app has no headless mode; we just want a non-crash exit.
+        # Implemented in pure bash because macos-14 runners do not ship GNU
+        # `timeout` (it lives in coreutils, which is not preinstalled).
+        run: |
+          set +e
+          dist/Aside.app/Contents/MacOS/Aside >launch.log 2>&1 &
+          APP_PID=$!
+          ( sleep 5 && kill -TERM "$APP_PID" 2>/dev/null ) &
+          WATCHDOG_PID=$!
+          wait "$APP_PID"
+          rc=$?
+          kill "$WATCHDOG_PID" 2>/dev/null
+          wait "$WATCHDOG_PID" 2>/dev/null
+          echo "exit code: $rc"
+          echo "── launch.log ──"
+          cat launch.log
+          # 143 = SIGTERM from the watchdog (i.e. app was still alive after 5s,
+          # which is the expected outcome for a Tk-driven UI). 0 is also fine
+          # if the app happens to exit cleanly. Anything else is a crash.
+          case "$rc" in
+            0|143) echo "OK rc=$rc (clean exit or watchdog timeout)" ;;
+            *) echo "::error::Aside Mach-O exited rc=$rc — likely import or dyld failure"; exit 1 ;;
+          esac
+
+      - name: Upload DMG as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aside-rehearsal-dmg
+          path: dist/Aside-*.dmg
+          if-no-files-found: error
+          retention-days: 14
