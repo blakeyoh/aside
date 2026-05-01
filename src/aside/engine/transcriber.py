@@ -76,6 +76,7 @@ class Transcriber:
         self._number_mode = NumberMode()
         self._last_injection_length = 0
         self._dictionary_path = DICTIONARY_FILE
+        self._dict_data = None
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
@@ -117,7 +118,9 @@ class Transcriber:
                 return
 
             # Stage 3: Dictionary Pre-Processing
-            dict_data = parse_dictionary(self._dictionary_path)
+            if self._dict_data is None:
+                self._dict_data = parse_dictionary(self._dictionary_path)
+            dict_data = self._dict_data
 
             # Combine defaults with user dictionary
             combined_hotwords = self._hotwords + [
@@ -205,4 +208,4 @@ class Transcriber:
 
     def reload_dictionary(self) -> None:
         """Force re-read of dictionary file (called after UI edits)."""
-        pass
+        self._dict_data = parse_dictionary(self._dictionary_path)
