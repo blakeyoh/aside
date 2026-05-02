@@ -184,7 +184,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     hw_add_btn = ctk.CTkButton(
         hw_input_row, text="Add", width=60,
         font=(FONT, 12), fg_color=BG2, text_color=FG,
-        hover_color=ACCENT, corner_radius=6,
+        hover_color=ACCENT, corner_radius=6, state="disabled"
     )
     hw_add_btn.pack(side="right", padx=(8, 0))
     widgets["hw_entry"] = hw_entry
@@ -206,7 +206,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     rep_add_btn = ctk.CTkButton(
         rep_input_row, text="Add", width=60,
         font=(FONT, 12), fg_color=BG2, text_color=FG,
-        hover_color=ACCENT, corner_radius=6,
+        hover_color=ACCENT, corner_radius=6, state="disabled"
     )
     rep_add_btn.pack(side="right", padx=(8, 0))
     widgets["rep_wrong"] = rep_wrong

@@ -180,6 +180,10 @@ class App(ctk.CTk):
         self._widgets["rep_add_btn"].configure(command=self._on_add_replacement)
         self._widgets["reload_btn"].configure(command=self._on_reload_dictionary)
 
+        self._widgets["hw_entry"].bind("<KeyRelease>", self._check_hw_add_state)
+        self._widgets["rep_wrong"].bind("<KeyRelease>", self._check_rep_add_state)
+        self._widgets["rep_right"].bind("<KeyRelease>", self._check_rep_add_state)
+
         # ── Onboarding window reference ──────────────────────────────────
         self._onboarding: OnboardingWindow | None = None
 
@@ -434,6 +438,8 @@ class App(ctk.CTk):
         if new_model != self._transcriber.model_size:
             self._transcriber.reload_model(new_model)
 
+        self._show_status_message("Settings applied", color="#30D158")
+
     def _on_capture_hotkey(self):
         """Enter hotkey capture mode."""
         self._reset_capture_ui(stop_capture=True)
@@ -498,6 +504,17 @@ class App(ctk.CTk):
         self._widgets["hotkey_cancel_btn"].pack_forget()
         self._widgets["toggle_cancel_btn"].pack_forget()
 
+    def _check_hw_add_state(self, event=None):
+        """Enable hotword add button only if text exists."""
+        term = self._widgets["hw_entry"].get().strip()
+        self._widgets["hw_add_btn"].configure(state="normal" if term else "disabled")
+
+    def _check_rep_add_state(self, event=None):
+        """Enable replacement add button only if both inputs have text."""
+        wrong = self._widgets["rep_wrong"].get().strip()
+        right = self._widgets["rep_right"].get().strip()
+        self._widgets["rep_add_btn"].configure(state="normal" if wrong and right else "disabled")
+
     def _on_add_hotword(self):
         """Add a hotword to the dictionary file."""
         entry = self._widgets["hw_entry"]
@@ -508,7 +525,9 @@ class App(ctk.CTk):
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{term}")
         entry.delete(0, "end")
+        self._check_hw_add_state()
         self._refresh_dict_count()
+        self._show_status_message("Hotword added", color="#30D158")
 
     def _on_add_replacement(self):
         """Add a replacement rule to the dictionary file."""
@@ -521,7 +540,9 @@ class App(ctk.CTk):
             f.write(f"\n{wrong} \u2192 {right}")
         self._widgets["rep_wrong"].delete(0, "end")
         self._widgets["rep_right"].delete(0, "end")
+        self._check_rep_add_state()
         self._refresh_dict_count()
+        self._show_status_message("Replacement added", color="#30D158")
 
     def _on_reload_dictionary(self):
         """Reload dictionary and update term count."""
