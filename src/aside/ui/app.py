@@ -15,6 +15,8 @@ import queue
 import sys
 import threading
 
+import os
+
 import customtkinter as ctk
 
 from aside import __version__
@@ -85,8 +87,10 @@ def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
 def _acquire_lock():
     """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_DIR.chmod(0o700)
     try:
         fd = open(LOCK_FILE, "w")
+        os.chmod(LOCK_FILE, 0o600)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
     except OSError:
