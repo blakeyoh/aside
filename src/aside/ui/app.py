@@ -184,6 +184,10 @@ class App(ctk.CTk):
         self._widgets["rep_wrong"].bind("<KeyRelease>", self._check_rep_add_state)
         self._widgets["rep_right"].bind("<KeyRelease>", self._check_rep_add_state)
 
+        self._widgets["hw_entry"].bind("<Return>", lambda e: self._on_add_hotword())
+        self._widgets["rep_wrong"].bind("<Return>", lambda e: self._on_add_replacement())
+        self._widgets["rep_right"].bind("<Return>", lambda e: self._on_add_replacement())
+
         # ── Onboarding window reference ──────────────────────────────────
         self._onboarding: OnboardingWindow | None = None
 
