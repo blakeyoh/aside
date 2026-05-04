@@ -5,7 +5,7 @@ which launches System Settings. Safe to call from any thread.
 """
 import ctypes
 import logging
-import subprocess
+import webbrowser
 from enum import Enum, auto
 
 logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ _PANES = {
 def open_privacy_pane(pane: str) -> None:
     """Open the matching Privacy pane in System Settings / System Preferences."""
     url = f"x-apple.systempreferences:{_PANES[pane]}"
-    subprocess.run(["open", url], check=False)
+    webbrowser.open(url)
 
 
 def request_privacy_access(pane: str) -> PermissionStatus | None:
