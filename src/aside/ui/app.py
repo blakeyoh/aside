@@ -185,7 +185,7 @@ class App(ctk.CTk):
         self._widgets["rep_right"].bind("<KeyRelease>", self._check_rep_add_state)
 
         self._widgets["hw_entry"].bind("<Return>", lambda e: self._on_add_hotword())
-        self._widgets["rep_wrong"].bind("<Return>", lambda e: self._on_add_replacement())
+        self._widgets["rep_wrong"].bind("<Return>", lambda e: self._widgets["rep_right"].focus())
         self._widgets["rep_right"].bind("<Return>", lambda e: self._on_add_replacement())
 
         # ── Onboarding window reference ──────────────────────────────────
@@ -532,6 +532,7 @@ class App(ctk.CTk):
         self._check_hw_add_state()
         self._refresh_dict_count()
         self._show_status_message("Hotword added", color="#30D158")
+        entry.focus()
 
     def _on_add_replacement(self):
         """Add a replacement rule to the dictionary file."""
@@ -547,6 +548,7 @@ class App(ctk.CTk):
         self._check_rep_add_state()
         self._refresh_dict_count()
         self._show_status_message("Replacement added", color="#30D158")
+        self._widgets["rep_wrong"].focus()
 
     def _on_reload_dictionary(self):
         """Reload dictionary and update term count."""
