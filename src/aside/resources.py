@@ -6,9 +6,14 @@ import sys
 
 def resource_path(name: str) -> Path:
     """Locate bundled resources in source checkouts and frozen app bundles."""
-    if getattr(sys, "frozen", False):
-        # py2app app layout: Aside.app/Contents/Resources/<name>
-        return Path(sys.executable).resolve().parent.parent / "Resources" / name
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        if getattr(sys, "frozen", False):
+            # py2app app layout: Aside.app/Contents/Resources/<name>
+            base_path = Path(sys.executable).resolve().parent.parent / "Resources"
+        else:
+            # Source mode: repository root
+            base_path = Path(__file__).resolve().parent.parent.parent
 
-    # Source mode: repository root
-    return Path(__file__).resolve().parent.parent.parent / name
+    return Path(base_path) / name
