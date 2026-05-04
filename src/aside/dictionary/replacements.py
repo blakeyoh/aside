@@ -1,5 +1,13 @@
 """Post-processing find/replace for transcribed text."""
+import functools
 import re
+
+
+@functools.lru_cache(maxsize=512)
+def _get_compiled_pattern(pattern: str) -> re.Pattern:
+    """Compile and cache a word-boundary-aware regex pattern."""
+    escaped = re.escape(pattern)
+    return re.compile(rf"(?<!\w){escaped}(?!\w)", flags=re.IGNORECASE)
 
 
 def apply_replacements(
@@ -19,13 +27,8 @@ def apply_replacements(
     result = text
     if isinstance(rules, dict):
         for pattern, replacement in rules.items():
-            escaped = re.escape(pattern)
-            result = re.sub(
-                rf"(?<!\w){escaped}(?!\w)",
-                replacement,
-                result,
-                flags=re.IGNORECASE,
-            )
+            compiled_pattern = _get_compiled_pattern(pattern)
+            result = compiled_pattern.sub(replacement, result)
     else:
         for pattern, replacement in rules:
             result = pattern.sub(replacement, result)
