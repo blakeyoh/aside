@@ -2,11 +2,13 @@
 
 Sections: Model, Hotkey, Toggle Hotkey, Dictionary, Language, Punctuation.
 """
-import subprocess
 import tkinter as tk
+import webbrowser
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
+from AppKit import NSWorkspace
+from Foundation import NSURL
 
 from aside.config import DICTIONARY_FILE, ensure_dictionary_file
 from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
@@ -18,6 +20,13 @@ from aside.ui.theme import (
 
 if TYPE_CHECKING:
     from aside.ui.app import App
+
+
+def open_dictionary_file() -> None:
+    """Open the custom dictionary in the user's default editor."""
+    ensure_dictionary_file()
+    url = NSURL.fileURLWithPath_(str(DICTIONARY_FILE))
+    NSWorkspace.sharedWorkspace().openURL_(url)
 
 
 def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
@@ -220,7 +229,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         dict_btn_row, text="Edit Dictionary",
         font=(FONT, 12), fg_color=BG2, text_color=FG,
         hover_color=ACCENT, corner_radius=6,
-        command=lambda: subprocess.run(["open", str(DICTIONARY_FILE)], check=False),
+        command=open_dictionary_file,
     )
     edit_btn.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
