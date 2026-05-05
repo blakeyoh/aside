@@ -20,6 +20,11 @@ if TYPE_CHECKING:
     from aside.ui.app import App
 
 
+def open_dictionary_file() -> None:
+    """Open the custom dictionary in the user's default editor."""
+    webbrowser.open(str(DICTIONARY_FILE))
+
+
 def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     """Build the settings panel and return widget references.
 
@@ -220,7 +225,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         dict_btn_row, text="Edit Dictionary",
         font=(FONT, 12), fg_color=BG2, text_color=FG,
         hover_color=ACCENT, corner_radius=6,
-        command=lambda: webbrowser.open(str(DICTIONARY_FILE)),
+        command=open_dictionary_file,
     )
     edit_btn.pack(side="left", fill="x", expand=True, padx=(0, 4))
 
