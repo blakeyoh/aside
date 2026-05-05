@@ -7,6 +7,8 @@ import webbrowser
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
+from AppKit import NSWorkspace
+from Foundation import NSURL
 
 from aside.config import DICTIONARY_FILE, ensure_dictionary_file
 from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
@@ -22,7 +24,9 @@ if TYPE_CHECKING:
 
 def open_dictionary_file() -> None:
     """Open the custom dictionary in the user's default editor."""
-    webbrowser.open(str(DICTIONARY_FILE))
+    ensure_dictionary_file()
+    url = NSURL.fileURLWithPath_(str(DICTIONARY_FILE))
+    NSWorkspace.sharedWorkspace().openURL_(url)
 
 
 def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
