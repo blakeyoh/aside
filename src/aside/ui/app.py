@@ -185,7 +185,7 @@ class App(ctk.CTk):
         self._widgets["rep_right"].bind("<KeyRelease>", self._check_rep_add_state)
 
         self._widgets["hw_entry"].bind("<Return>", lambda e: self._on_add_hotword())
-        self._widgets["rep_wrong"].bind("<Return>", lambda e: self._widgets["rep_right"].focus())
+        self._widgets["rep_wrong"].bind("<Return>", lambda e: self._on_rep_wrong_return())
         self._widgets["rep_right"].bind("<Return>", lambda e: self._on_add_replacement())
 
         # ── Onboarding window reference ──────────────────────────────────
@@ -518,6 +518,13 @@ class App(ctk.CTk):
         wrong = self._widgets["rep_wrong"].get().strip()
         right = self._widgets["rep_right"].get().strip()
         self._widgets["rep_add_btn"].configure(state="normal" if wrong and right else "disabled")
+
+    def _on_rep_wrong_return(self):
+        """Handle return key in replacement 'wrong' field."""
+        if not self._widgets["rep_right"].get().strip():
+            self._widgets["rep_right"].focus()
+        else:
+            self._on_add_replacement()
 
     def _on_add_hotword(self):
         """Add a hotword to the dictionary file."""
