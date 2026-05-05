@@ -4,16 +4,15 @@ Sections: Model, Hotkey, Toggle Hotkey, Dictionary, Language, Punctuation.
 """
 import subprocess
 import tkinter as tk
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
-from aside.config import DICTIONARY_FILE, save_config, ensure_dictionary_file
-from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS, ARROW
+from aside.config import DICTIONARY_FILE, ensure_dictionary_file
+from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
 from aside.ui.menubar import hotkey_display
 from aside.ui.theme import (
-    BG, BG2, FG, FG2, ACCENT, SEP, FONT, MONO,
+    BG2, FG, FG2, ACCENT, SEP, FONT, MONO,
     MODELS, MODEL_LABELS, LANGUAGES,
 )
 
