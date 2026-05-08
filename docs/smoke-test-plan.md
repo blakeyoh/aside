@@ -30,12 +30,12 @@ Before running any test, establish the known baseline.
 
 - [ ] **PF-3: Verify package installation**
   - Run: `.venv/bin/python3 -c "import aside; print(aside.__version__)"`
-  - Expected: `1.1.0`
+  - Expected: `1.3.0`
   - **GATE:** If import fails, run `pip install -e .` and retry.
 
 - [ ] **PF-4: Verify unit tests**
   - Run: `.venv/bin/python3 -m pytest tests/ -v`
-  - Expected: `118 passed`
+  - Expected: `129 passed`
   - **GATE:** If any fail, fix before proceeding. Do not smoke test a broken build.
 
 - [ ] **PF-5: Verify macOS permissions**
@@ -119,7 +119,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Set `MODEL_REVISION` to a pinned 40-character SHA from `git ls-remote https://huggingface.co/Systran/faster-whisper-base main`
 - [ ] Run: `MODEL_REVISION=<sha> scripts/build_app.sh release`
 - [ ] Run: `scripts/package_dmg.sh`
-- [ ] Expected: `dist/Aside-1.1.0.dmg` exists and contains `Aside.app`
+- [ ] Expected: `dist/Aside-1.3.0.dmg` exists and contains `Aside.app`
 - [ ] Install from the DMG into `/Applications`
 - [ ] Double-click `/Applications/Aside.app`
 - [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon

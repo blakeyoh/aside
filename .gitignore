@@ -4,6 +4,7 @@ __pycache__/
 *.egg-info/
 *.egg
 dist/
+dist-swiftui/
 build/
 *.so
 
@@ -44,3 +45,4 @@ anthropic-deep-learning-api-key.txt
 
 # Packaging build inputs
 vendor/
+swiftui-launch.log

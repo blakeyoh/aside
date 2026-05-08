@@ -35,7 +35,7 @@ Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migr
 
 ```
 src/aside/
-├── __init__.py              # __version__ = "1.1.0"
+├── __init__.py              # __version__ = "1.3.0"
 ├── __main__.py              # entry point
 ├── config.py                # load/save/migrate config, DEFAULT_CONFIG
 ├── permissions.py           # mic/accessibility/input-monitoring checks + Settings links
