@@ -30,6 +30,16 @@
 
 ## Short-term
 - ~~**Aside-branded menu bar icon**~~ — done 2026-03-29 (aside-logo.png → AppIcon.icns)
+- ~~**SwiftUI menu-bar icon polish**~~ — done 2026-05-07 (idle state now uses an Aside-specific `A` menu-bar mark)
+- ~~**SwiftUI copy reduction pass**~~ — done 2026-05-07 (General now summarizes instead of repeating detailed panels)
+- ~~**SwiftUI tab/content dedupe**~~ — done 2026-05-07 (dedicated tabs own detailed controls)
+- ~~**SwiftUI dictionary UX upgrade**~~ — done 2026-05-07 (hotword/replacement guidance, empty states, term-limit handling)
+- ~~**SwiftUI voice-command audit**~~ — done 2026-05-07 (all 12 built-in commands represented)
+- ~~**SwiftUI About decision**~~ — done 2026-05-07 (expanded with concise product/privacy/engine/license content)
+- ~~**SwiftUI tutorial tab**~~ — done 2026-05-07 (added Practice tab with smoke prompts)
+- ~~**SwiftUI alignment polish**~~ — done 2026-05-07 (fixed left navigation row alignment and compact summary layout)
+- [ ] **Native release package** — build release packaging for the SwiftUI app, update versioning, and verify the new app icon appears in the Dock when installed/launched outside the terminal script.
+- [ ] **Install/release smoke tests in CI** — add GitHub workflow coverage for install and release package smoke tests.
 - [ ] **Homebrew formula** — `Formula/aside.rb` for `brew tap blakeyoh/aside && brew install aside`
 - ~~**Transcribing state in menu bar icon**~~ — done 2026-04-24 (blue processing badge while Whisper runs)
 - ~~**Hotkey capture cancel button**~~ — done 2026-04-24 (abort capture without pressing a combo)
