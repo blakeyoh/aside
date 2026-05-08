@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 
@@ -16,12 +17,15 @@ final class HelperSupervisor: ObservableObject {
     private var stdinPipe: Pipe?
     private var stdoutRemainder = Data()
     private var stderrRemainder = Data()
+    private var didScheduleProtocolSmokeExit = false
+
+    private var isProtocolSmokeMode: Bool {
+        ProcessInfo.processInfo.environment["ASIDE_SWIFTUI_PROTOCOL_SMOKE"] == "1"
+    }
 
     var helperDescription: String {
-        let env = ProcessInfo.processInfo.environment
-        let repoRoot = resolvedRepoRoot(environment: env)
-        let python = resolvedPython(repoRoot: repoRoot, environment: env)
-        return "\(python) -m aside.helper"
+        let launch = resolvedHelperLaunch(environment: ProcessInfo.processInfo.environment)
+        return ([launch.executable.path] + launch.arguments).joined(separator: " ")
     }
 
     func startHelper() {
@@ -29,14 +33,13 @@ final class HelperSupervisor: ObservableObject {
             return
         }
 
-        let env = ProcessInfo.processInfo.environment
-        let repoRoot = resolvedRepoRoot(environment: env)
-        let pythonPath = resolvedPython(repoRoot: repoRoot, environment: env)
+        let launch = resolvedHelperLaunch(environment: ProcessInfo.processInfo.environment)
+        let executablePath = launch.executable.path
 
-        guard FileManager.default.isExecutableFile(atPath: pythonPath) else {
+        guard FileManager.default.isExecutableFile(atPath: executablePath) else {
             state = .error
-            errorMessage = "Python helper is not executable at \(pythonPath). Set ASIDE_PYTHON or run from the repo root after setup.sh."
-            appendLog("launch failed: \(pythonPath)")
+            errorMessage = "Helper is not executable at \(executablePath). Set ASIDE_PYTHON or run from the repo root after setup.sh."
+            appendLog("launch failed: \(executablePath)")
             return
         }
 
@@ -45,17 +48,18 @@ final class HelperSupervisor: ObservableObject {
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
 
-        process.executableURL = URL(fileURLWithPath: pythonPath)
-        process.arguments = ["-u", "-m", "aside.helper"]
-        process.currentDirectoryURL = URL(fileURLWithPath: repoRoot)
+        process.executableURL = launch.executable
+        process.arguments = launch.arguments
+        process.currentDirectoryURL = launch.workingDirectory
 
-        var childEnvironment = env
+        var childEnvironment = ProcessInfo.processInfo.environment
         childEnvironment["PYTHONUNBUFFERED"] = "1"
-        let srcPath = URL(fileURLWithPath: repoRoot).appendingPathComponent("src").path
-        if let existing = childEnvironment["PYTHONPATH"], !existing.isEmpty {
-            childEnvironment["PYTHONPATH"] = "\(srcPath):\(existing)"
-        } else {
-            childEnvironment["PYTHONPATH"] = srcPath
+        if let pythonPath = launch.pythonPath {
+            if let existing = childEnvironment["PYTHONPATH"], !existing.isEmpty {
+                childEnvironment["PYTHONPATH"] = "\(pythonPath):\(existing)"
+            } else {
+                childEnvironment["PYTHONPATH"] = pythonPath
+            }
         }
         process.environment = childEnvironment
 
@@ -225,6 +229,9 @@ final class HelperSupervisor: ObservableObject {
         state = HelperState(rawValue: rawState) ?? .error
         errorMessage = state == .error ? message : nil
         appendLog("status \(rawState)")
+        if rawState == "ready" {
+            scheduleProtocolSmokeExit()
+        }
     }
 
     private func handleTermination(status: Int32) {
@@ -253,7 +260,29 @@ final class HelperSupervisor: ObservableObject {
         if eventLog.count > 80 {
             eventLog.removeFirst(eventLog.count - 80)
         }
+        if isProtocolSmokeMode {
+            FileHandle.standardError.write(Data("[AsideShell] \(line)\n".utf8))
+        }
     }
+
+    private func scheduleProtocolSmokeExit() {
+        guard isProtocolSmokeMode, !didScheduleProtocolSmokeExit else {
+            return
+        }
+        didScheduleProtocolSmokeExit = true
+        appendLog("protocol smoke passed: helper ready")
+        send(command: "shutdown")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            NSApplication.shared.terminate(nil)
+        }
+    }
+}
+
+struct HelperLaunch {
+    let executable: URL
+    let arguments: [String]
+    let workingDirectory: URL?
+    let pythonPath: String?
 }
 
 struct HelperConfig {
@@ -358,6 +387,37 @@ struct HotkeyConfig {
     var displayText: String {
         displayParts.joined(separator: " ")
     }
+}
+
+func bundledResourceURL() -> URL? {
+    Bundle.main.resourceURL
+}
+
+func resolvedHelperLaunch(environment: [String: String]) -> HelperLaunch {
+    if let resources = bundledResourceURL() {
+        let helperExecutable = resources
+            .appendingPathComponent("AsideHelper.app")
+            .appendingPathComponent("Contents")
+            .appendingPathComponent("MacOS")
+            .appendingPathComponent("AsideHelper")
+        if FileManager.default.isExecutableFile(atPath: helperExecutable.path) {
+            return HelperLaunch(
+                executable: helperExecutable,
+                arguments: [],
+                workingDirectory: resources,
+                pythonPath: nil
+            )
+        }
+    }
+
+    let repoRoot = resolvedRepoRoot(environment: environment)
+    let python = resolvedPython(repoRoot: repoRoot, environment: environment)
+    return HelperLaunch(
+        executable: URL(fileURLWithPath: python),
+        arguments: ["-u", "-m", "aside.helper"],
+        workingDirectory: URL(fileURLWithPath: repoRoot),
+        pythonPath: URL(fileURLWithPath: repoRoot).appendingPathComponent("src").path
+    )
 }
 
 func resolvedRepoRoot(environment: [String: String]) -> String {

@@ -1,0 +1,127 @@
+name: Release rehearsal SwiftUI
+
+# Manual dry-run for the native SwiftUI distribution path.
+# This is intentionally separate from release-rehearsal.yml, which validates
+# the legacy py2app/customtkinter app. This workflow validates that the app
+# users install is a Swift executable with an embedded py2app Python helper.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  rehearsal-swiftui:
+    runs-on: macos-14
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Homebrew dependencies
+        run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
+
+      - name: Set up Python environment
+        run: |
+          python3.13 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install "setuptools<70" wheel
+          .venv/bin/pip install "py2app==0.28.10" "huggingface_hub>=0.20"
+          .venv/bin/pip install -e .
+          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+
+      - name: Run helper protocol tests
+        run: |
+          source .venv/bin/activate
+          python -m pytest tests/test_swiftui_helper.py tests/test_swiftui_helper_subprocess.py -v
+
+      - name: Build SwiftUI Aside.app
+        env:
+          MODEL_REVISION: ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
+        run: |
+          source .venv/bin/activate
+          scripts/build_swiftui_app.sh release
+
+      - name: Verify SwiftUI bundle structure
+        run: |
+          set -euo pipefail
+          APP=dist-swiftui/Aside.app
+          test -d "$APP"
+          test -x "$APP/Contents/MacOS/Aside"
+          test -f "$APP/Contents/Resources/AppIcon.icns"
+          test -d "$APP/Contents/Resources/AsideHelper.app"
+          test -x "$APP/Contents/Resources/AsideHelper.app/Contents/MacOS/AsideHelper"
+          test -f "$APP/Contents/Resources/AsideHelper.app/Contents/Resources/faster-whisper-base/model.bin"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$APP/Contents/Info.plist" | grep -qx "Aside"
+          file "$APP/Contents/MacOS/Aside"
+
+      - name: Codesign SwiftUI app
+        run: |
+          codesign --deep --force --sign - \
+            --entitlements entitlements.plist dist-swiftui/Aside.app
+          codesign --verify --deep --strict --verbose=2 dist-swiftui/Aside.app
+
+      - name: Smoke-launch SwiftUI bundle with embedded helper
+        run: |
+          set +e
+          ASIDE_HELPER_PROTOCOL_SMOKE=1 \
+            ASIDE_SWIFTUI_PROTOCOL_SMOKE=1 \
+            dist-swiftui/Aside.app/Contents/MacOS/Aside >swiftui-launch.log 2>&1 &
+          APP_PID=$!
+          for _ in {1..20}; do
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if kill -0 "$APP_PID" 2>/dev/null; then
+            echo "::error::SwiftUI smoke launch did not exit after helper readiness."
+            kill -TERM "$APP_PID" 2>/dev/null || true
+          fi
+          wait "$APP_PID"
+          rc=$?
+
+          echo "app pid: $APP_PID"
+          echo "exit code: $rc"
+          echo "-- swiftui-launch.log --"
+          cat swiftui-launch.log
+
+          if [[ "$rc" != "0" ]]; then
+            echo "::error::SwiftUI app exited with unexpected code $rc."
+            exit 1
+          fi
+
+          if grep -Eqi "(Traceback|ImportError|ModuleNotFoundError|Library not loaded|dyld:|Abort trap|Segmentation fault)" swiftui-launch.log; then
+            echo "::error::Detected explicit runtime crash signature in SwiftUI launch log."
+            exit 1
+          fi
+
+          if ! grep -q "protocol smoke passed: helper ready" swiftui-launch.log; then
+            echo "::error::SwiftUI app exited without proving embedded helper readiness."
+            exit 1
+          fi
+
+      - name: Package SwiftUI DMG
+        run: |
+          source .venv/bin/activate
+          scripts/package_swiftui_dmg.sh
+
+      - name: Verify SwiftUI DMG
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=( dist-swiftui/Aside-SwiftUI-*.dmg )
+          test "${#DMGS[@]}" -eq 1
+          DMG="${DMGS[0]}"
+          echo "DMG: $DMG"
+          hdiutil verify "$DMG"
+          MOUNT=$(hdiutil attach "$DMG" -nobrowse -readonly | tail -1 | awk '{print $3}')
+          echo "Mounted at: $MOUNT"
+          test -x "$MOUNT/Aside.app/Contents/MacOS/Aside"
+          test -x "$MOUNT/Aside.app/Contents/Resources/AsideHelper.app/Contents/MacOS/AsideHelper"
+          hdiutil detach "$MOUNT"
+
+      - name: Upload SwiftUI DMG as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aside-SwiftUI-rehearsal-dmg
+          path: dist-swiftui/Aside-SwiftUI-*.dmg
+          if-no-files-found: error
+          retention-days: 14

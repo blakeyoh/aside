@@ -121,7 +121,18 @@ enum SidebarSection: String, CaseIterable {
 
 @main
 struct AsideShellApp: App {
-    @StateObject private var supervisor = HelperSupervisor()
+    @StateObject private var supervisor: HelperSupervisor
+
+    init() {
+        let helperSupervisor = HelperSupervisor()
+        _supervisor = StateObject(wrappedValue: helperSupervisor)
+
+        if ProcessInfo.processInfo.environment["ASIDE_SWIFTUI_PROTOCOL_SMOKE"] == "1" {
+            DispatchQueue.main.async {
+                helperSupervisor.startHelper()
+            }
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -265,6 +276,9 @@ struct HeaderView: View {
 
 struct AppLogoView: View {
     private var logo: NSImage? {
+        if let bundled = Bundle.main.path(forResource: "NEW-aside-logo", ofType: "png") {
+            return NSImage(contentsOfFile: bundled)
+        }
         let repoRoot = resolvedRepoRoot(environment: ProcessInfo.processInfo.environment)
         return NSImage(contentsOfFile: "\(repoRoot)/assets/NEW-aside-logo.png")
     }
