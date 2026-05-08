@@ -35,6 +35,9 @@ setup.sh.bak
 .observer.lock
 .whisper-dictation.lock
 
+# SwiftPM build output
+native/AsideShell/.build/
+
 # Misc
 .zshrc
 anthropic-deep-learning-api-key.txt
