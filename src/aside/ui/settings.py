@@ -205,10 +205,10 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
 
     rep_input_row = ctk.CTkFrame(rep_row, fg_color="transparent", corner_radius=0)
     rep_input_row.pack(fill="x", pady=(2, 0))
-    rep_wrong = ctk.CTkEntry(rep_input_row, placeholder_text="wrong", font=(FONT, 13), width=120)
+    rep_wrong = ctk.CTkEntry(rep_input_row, placeholder_text="spoken", font=(FONT, 13), width=120)
     rep_wrong.pack(side="left")
     ctk.CTkLabel(rep_input_row, text="\u2192", font=(FONT, 13), text_color=FG2).pack(side="left", padx=4)
-    rep_right = ctk.CTkEntry(rep_input_row, placeholder_text="right", font=(FONT, 13), width=120)
+    rep_right = ctk.CTkEntry(rep_input_row, placeholder_text="replacement", font=(FONT, 13), width=120)
     rep_right.pack(side="left")
 
     rep_add_btn = ctk.CTkButton(

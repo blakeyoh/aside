@@ -9,3 +9,6 @@
 ## 2026-05-03 - Focus management on continuous input forms
 **Learning:** Seamless keyboard navigation for paired inputs (like key-value dictionary entries) and automatic re-focusing on inputs after submission makes repetitive data entry significantly smoother. Before this change, adding a dictionary rule required clicking the input again after each entry.
 **Action:** When creating text input fields that users will likely use repeatedly in succession, always manage focus explicitly. For paired entries, hitting 'Return' in the first field should focus the second field; hitting 'Return' in the second field should submit the action and focus the first field again.
+## 2026-05-13 - Background Action Feedback
+**Learning:** Invisible background UI actions (like reloading dictionary) need immediate ephemeral visual feedback (like `_show_status_message`) so users know the system registered their interaction.
+**Action:** Always ensure that non-visual operations triggered by UI buttons are paired with a status update, toast, or temporary label indicating success/failure.
