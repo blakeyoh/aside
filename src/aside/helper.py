@@ -465,6 +465,7 @@ class AsideStdioHelper:
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as handle:
             handle.write(f"\n{term}")
+        DICTIONARY_FILE.chmod(0o600)
         self._transcriber.reload_dictionary()
         self.emit_dictionary()
 
@@ -481,6 +482,7 @@ class AsideStdioHelper:
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as handle:
             handle.write(f"\n{wrong} → {right}")
+        DICTIONARY_FILE.chmod(0o600)
         self._transcriber.reload_dictionary()
         self.emit_dictionary()
 
@@ -518,6 +520,7 @@ class AsideStdioHelper:
             "",
         ]
         DICTIONARY_FILE.write_text("\n".join(lines), encoding="utf-8")
+        DICTIONARY_FILE.chmod(0o600)
 
     def _open_dictionary(self) -> None:
         ensure_dictionary_file()

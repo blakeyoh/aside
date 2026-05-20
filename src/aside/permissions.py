@@ -135,7 +135,11 @@ _PANES = {
 
 def open_privacy_pane(pane: str) -> None:
     """Open the matching Privacy pane in System Settings / System Preferences."""
-    url = f"x-apple.systempreferences:{_PANES[pane]}"
+    pane_path = _PANES.get(pane)
+    if not pane_path:
+        logger.error(f"Unknown privacy pane requested: {pane}")
+        return
+    url = f"x-apple.systempreferences:{pane_path}"
     webbrowser.open(url)
 
 
