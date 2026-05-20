@@ -13,6 +13,7 @@ Orchestrates the 8-stage pipeline:
 Stages 3-8 happen in this module's transcribe() method.
 """
 import logging
+import os
 import threading
 from typing import Callable
 
@@ -76,6 +77,8 @@ class Transcriber:
         self._number_mode = NumberMode()
         self._last_injection_length = 0
         self._dictionary_path = DICTIONARY_FILE
+        self._dict_cache = None
+        self._dict_mtime = 0.0
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
@@ -117,12 +120,26 @@ class Transcriber:
                 return
 
             # Stage 3: Dictionary Pre-Processing
-            dict_data = parse_dictionary(self._dictionary_path)
+            try:
+                mtime = os.path.getmtime(self._dictionary_path)
+            except OSError:
+                mtime = 0.0
+
+            if self._dict_cache is None or mtime != self._dict_mtime:
+                self._dict_cache = parse_dictionary(self._dictionary_path)
+                self._dict_mtime = mtime
+
+            # Assign to local variable for thread safety during processing
+            dict_data = self._dict_cache
 
             # Combine defaults with user dictionary
-            combined_hotwords = self._hotwords + [
-                hw for hw in dict_data.hotwords if hw not in self._hotwords
-            ]
+            seen = set(self._hotwords)
+            combined_hotwords = list(self._hotwords)
+            for hw in dict_data.hotwords:
+                if hw not in seen:
+                    seen.add(hw)
+                    combined_hotwords.append(hw)
+
             hotwords_str = " ".join(combined_hotwords) or None
             initial_prompt = self._context.build_initial_prompt(combined_hotwords) or None
 
