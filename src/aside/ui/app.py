@@ -85,13 +85,23 @@ def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
 def _acquire_lock():
     """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_DIR.chmod(0o700)
+    try:
+        CONFIG_DIR.chmod(0o700)
+    except OSError as exc:
+        logger.warning(f"Could not enforce 0o700 on {CONFIG_DIR}: {exc}")
     try:
         fd = open(LOCK_FILE, "w")
+    except OSError:
+        return None
+    try:
         LOCK_FILE.chmod(0o600)
+    except OSError as exc:
+        logger.warning(f"Could not enforce 0o600 on {LOCK_FILE}: {exc}")
+    try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
     except OSError:
+        fd.close()
         return None
 
 
@@ -537,7 +547,10 @@ class App(ctk.CTk):
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{term}")
-        DICTIONARY_FILE.chmod(0o600)
+        try:
+            DICTIONARY_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         entry.delete(0, "end")
         self._check_hw_add_state()
         self._refresh_dict_count()
@@ -553,7 +566,10 @@ class App(ctk.CTk):
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{wrong} \u2192 {right}")
-        DICTIONARY_FILE.chmod(0o600)
+        try:
+            DICTIONARY_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         self._widgets["rep_wrong"].delete(0, "end")
         self._widgets["rep_right"].delete(0, "end")
         self._check_rep_add_state()

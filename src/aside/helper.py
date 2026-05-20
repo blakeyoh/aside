@@ -465,7 +465,10 @@ class AsideStdioHelper:
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as handle:
             handle.write(f"\n{term}")
-        DICTIONARY_FILE.chmod(0o600)
+        try:
+            DICTIONARY_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         self._transcriber.reload_dictionary()
         self.emit_dictionary()
 
@@ -482,7 +485,10 @@ class AsideStdioHelper:
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as handle:
             handle.write(f"\n{wrong} → {right}")
-        DICTIONARY_FILE.chmod(0o600)
+        try:
+            DICTIONARY_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         self._transcriber.reload_dictionary()
         self.emit_dictionary()
 
