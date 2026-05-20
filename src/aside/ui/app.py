@@ -561,6 +561,7 @@ class App(ctk.CTk):
         """Reload dictionary and update term count."""
         self._transcriber.reload_dictionary()
         self._refresh_dict_count()
+        self._show_status_message("Dictionary reloaded", color="#30D158")
 
     def _refresh_dict_count(self):
         """Update the dictionary term count label."""
