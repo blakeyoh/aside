@@ -1,10 +1,9 @@
 name: Build smoke
 
-# Fresh-Mac install + py2app build smoke gate.
+# Fresh-Mac developer install smoke gate.
 # Catches dependency surgery / toolchain drift before a human tester does.
-# Runs on every push and PR — fails fast if `setup.sh` no longer installs
-# cleanly or `scripts/build_app.sh dev` no longer produces a launchable
-# app bundle.
+# Runs on every push and PR. It proves setup.sh, the Python unit suite, the
+# SwiftUI source-checkout helper launch, and the legacy py2app dev bundle.
 
 on:
   push:
@@ -49,6 +48,11 @@ jobs:
         run: |
           source .venv/bin/activate
           python -m pytest tests/ -v
+
+      - name: Smoke-launch SwiftUI shell from source checkout
+        run: |
+          source .venv/bin/activate
+          scripts/smoke_swiftui_launch.sh
 
       - name: Build alias .app bundle (dev mode, no SHA pin needed)
         run: |

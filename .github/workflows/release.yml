@@ -29,13 +29,15 @@ jobs:
           .venv/bin/pip install "setuptools<70" wheel
           .venv/bin/pip install "py2app==0.28.10" "huggingface_hub>=0.20"
           .venv/bin/pip install -e .
+          .venv/bin/pip install "pytest>=8"
           # Make the venv's python the default for all subsequent steps
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
       - name: Confirm tag matches src/aside/__version__
         # Fail fast if someone tags a version that doesn't match the source.
-        # Otherwise package_dmg.sh would produce Aside-<__version__>.dmg
-        # and the release-upload glob below would not find an "Aside-<tag>.dmg".
+        # Otherwise package_swiftui_dmg.sh would produce Aside-SwiftUI-<__version__>.dmg
+        # and the release-upload glob below would not find an
+        # "Aside-SwiftUI-<tag>.dmg".
         run: |
           PYVER=$(python -c "import sys; sys.path.insert(0,'src'); from aside import __version__; print(__version__)")
           TAG="${GITHUB_REF_NAME#v}"
@@ -43,24 +45,46 @@ jobs:
           echo "src/aside/__init__.py version = $PYVER"
           test "$TAG" = "$PYVER"
 
-      - name: Build Aside.app
+      - name: Run unit tests
+        run: |
+          source .venv/bin/activate
+          python -m pytest tests/ -v
+
+      - name: Build SwiftUI Aside.app
         # MODEL_REVISION is pinned in source so release artifacts are
         # byte-reproducible and bumps go through code review. To bump:
         #   1. git ls-remote https://huggingface.co/Systran/faster-whisper-base main
         #   2. Replace the value below with the new 40-char SHA
-        #   3. Open a PR — release-rehearsal.yml will verify the bundle before tagging
+        #   3. Open a PR — release-rehearsal-swift.yml will verify the bundle before tagging
         env:
           MODEL_REVISION: ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
-        run: scripts/build_app.sh release
+        run: |
+          source .venv/bin/activate
+          scripts/build_swiftui_app.sh release
 
-      - name: Codesign
+      - name: Verify SwiftUI bundle before signing
+        run: |
+          source .venv/bin/activate
+          scripts/verify_swiftui_bundle.sh dist-swiftui/Aside.app
+
+      - name: Codesign SwiftUI app
         # Uses ad-hoc identity (-) until Apple Developer enrollment is complete.
         # After enrollment: add a CODESIGN_IDENTITY repository secret containing
         # your Developer ID Application certificate name, then change "-" below to
         # "${{ secrets.CODESIGN_IDENTITY }}".
         run: |
           codesign --deep --force --sign - \
-            --entitlements entitlements.plist dist/Aside.app
+            --entitlements entitlements.plist dist-swiftui/Aside.app
+
+      - name: Verify signed SwiftUI bundle
+        run: |
+          source .venv/bin/activate
+          scripts/verify_swiftui_bundle.sh --codesign dist-swiftui/Aside.app
+
+      - name: Smoke-launch SwiftUI bundle with embedded helper
+        run: |
+          source .venv/bin/activate
+          scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app
 
       # ── Notarization — uncomment after Apple Developer enrollment ─────────
       #
@@ -78,32 +102,49 @@ jobs:
       #     APPLE_TEAM_ID:     ${{ secrets.APPLE_TEAM_ID }}
       #     NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
       #   run: |
-      #     xcrun notarytool submit dist/Aside.app \
+      #     xcrun notarytool submit dist-swiftui/Aside.app \
       #       --apple-id       "$APPLE_ID" \
       #       --team-id        "$APPLE_TEAM_ID" \
       #       --password       "$NOTARIZE_PASSWORD" \
       #       --wait
-      #     xcrun stapler staple dist/Aside.app
+      #     xcrun stapler staple dist-swiftui/Aside.app
       #
       # ─────────────────────────────────────────────────────────────────────
 
-      - name: Package DMG
-        run: scripts/package_dmg.sh
+      - name: Package SwiftUI DMG
+        run: |
+          source .venv/bin/activate
+          scripts/package_swiftui_dmg.sh
 
-      - name: Confirm exactly one DMG was produced
-        # Fails the release before the upload step if package_dmg.sh wrote a
+      - name: Verify SwiftUI DMG
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=( dist-swiftui/Aside-SwiftUI-*.dmg )
+          test "${#DMGS[@]}" -eq 1
+          DMG="${DMGS[0]}"
+          echo "DMG: $DMG"
+          hdiutil verify "$DMG"
+          MOUNT=$(hdiutil attach "$DMG" -nobrowse -readonly | tail -1 | awk '{print $3}')
+          echo "Mounted at: $MOUNT"
+          scripts/verify_swiftui_bundle.sh --codesign "$MOUNT/Aside.app"
+          hdiutil detach "$MOUNT"
+
+      - name: Confirm exactly one SwiftUI DMG was produced
+        # Fails the release before the upload step if package_swiftui_dmg.sh wrote a
         # differently-named file (or none at all) — otherwise the upload glob
         # would silently match nothing and produce an empty GitHub Release.
         run: |
           set -euo pipefail
           shopt -s nullglob
-          DMGS=( dist/Aside-*.dmg )
+          DMGS=( dist-swiftui/Aside-SwiftUI-*.dmg )
           test "${#DMGS[@]}" -eq 1
           echo "Found release artifact: ${DMGS[0]}"
+          test "$(basename "${DMGS[0]}")" = "Aside-SwiftUI-${GITHUB_REF_NAME#v}.dmg"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Aside-*.dmg
+          files: dist-swiftui/Aside-SwiftUI-*.dmg
           fail_on_unmatched_files: true
           generate_release_notes: true
