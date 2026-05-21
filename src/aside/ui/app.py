@@ -85,9 +85,9 @@ def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
 
 def _acquire_lock():
     """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
-    CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    CONFIG_DIR.chmod(0o700)
     try:
+        CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        CONFIG_DIR.chmod(0o700)
         fd = open(LOCK_FILE, "w")
         LOCK_FILE.chmod(0o600)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
