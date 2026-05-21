@@ -9,6 +9,7 @@ Threading model:
   Background "event-tap": CGEventTap CFRunLoop (via HotkeyManager)
   Background "model-load" / "transcribe": Whisper model + pipeline
 """
+
 import fcntl
 import logging
 import queue
@@ -33,7 +34,7 @@ from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.onboarding import OnboardingWindow
 from aside.ui.settings import build_settings
-from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
+from aside.ui.theme import BG, FG, FG2, FONT, POLL_MS, STATUS_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -84,9 +85,11 @@ def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
 
 def _acquire_lock():
     """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    CONFIG_DIR.chmod(0o700)
     try:
         fd = open(LOCK_FILE, "w")
+        LOCK_FILE.chmod(0o600)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
     except OSError:
@@ -107,6 +110,7 @@ class App(ctk.CTk):
         if self._lock_fd is None:
             try:
                 from AppKit import NSAlert
+
                 alert = NSAlert.alloc().init()
                 alert.setMessageText_("Aside is already running")
                 alert.setInformativeText_(
@@ -129,7 +133,9 @@ class App(ctk.CTk):
         # ── Config ───────────────────────────────────────────────────────
         self.cfg = load_config()
         if hotkeys_equal(self.cfg.get("hotkey"), self.cfg.get("toggle_hotkey")):
-            logger.warning("Toggle hotkey matched push-to-talk hotkey; disabling toggle")
+            logger.warning(
+                "Toggle hotkey matched push-to-talk hotkey; disabling toggle"
+            )
             self.cfg["toggle_hotkey"] = None
             save_config(self.cfg)
 
@@ -145,20 +151,26 @@ class App(ctk.CTk):
         status_frame.pack(fill="x", padx=16, pady=(12, 0))
 
         self._status_dot = ctk.CTkLabel(
-            status_frame, text="●", font=(FONT, 14),
+            status_frame,
+            text="●",
+            font=(FONT, 14),
             text_color=STATUS_MAP["loading"][0],
         )
         self._status_dot.pack(side="left")
 
         self._status_label = ctk.CTkLabel(
-            status_frame, text=STATUS_MAP["loading"][1],
-            font=(FONT, 13), text_color=FG,
+            status_frame,
+            text=STATUS_MAP["loading"][1],
+            font=(FONT, 13),
+            text_color=FG,
         )
         self._status_label.pack(side="left", padx=(6, 0))
 
         self._version_label = ctk.CTkLabel(
-            status_frame, text=f"v{__version__}",
-            font=(FONT, 11), text_color=FG2,
+            status_frame,
+            text=f"v{__version__}",
+            font=(FONT, 11),
+            text_color=FG2,
         )
         self._version_label.pack(side="right")
 
@@ -172,9 +184,13 @@ class App(ctk.CTk):
         # ── Wire settings button callbacks ───────────────────────────────
         self._widgets["apply_btn"].configure(command=self._on_apply)
         self._widgets["hotkey_btn"].configure(command=self._on_capture_hotkey)
-        self._widgets["hotkey_cancel_btn"].configure(command=self._on_cancel_hotkey_capture)
+        self._widgets["hotkey_cancel_btn"].configure(
+            command=self._on_cancel_hotkey_capture
+        )
         self._widgets["toggle_btn"].configure(command=self._on_capture_toggle)
-        self._widgets["toggle_cancel_btn"].configure(command=self._on_cancel_hotkey_capture)
+        self._widgets["toggle_cancel_btn"].configure(
+            command=self._on_cancel_hotkey_capture
+        )
         self._widgets["toggle_clear_btn"].configure(command=self._on_clear_toggle)
         self._widgets["hw_add_btn"].configure(command=self._on_add_hotword)
         self._widgets["rep_add_btn"].configure(command=self._on_add_replacement)
@@ -185,8 +201,12 @@ class App(ctk.CTk):
         self._widgets["rep_right"].bind("<KeyRelease>", self._check_rep_add_state)
 
         self._widgets["hw_entry"].bind("<Return>", lambda e: self._on_add_hotword())
-        self._widgets["rep_wrong"].bind("<Return>", lambda e: self._on_rep_wrong_return())
-        self._widgets["rep_right"].bind("<Return>", lambda e: self._on_add_replacement())
+        self._widgets["rep_wrong"].bind(
+            "<Return>", lambda e: self._on_rep_wrong_return()
+        )
+        self._widgets["rep_right"].bind(
+            "<Return>", lambda e: self._on_add_replacement()
+        )
 
         # ── Onboarding window reference ──────────────────────────────────
         self._onboarding: OnboardingWindow | None = None
@@ -239,9 +259,7 @@ class App(ctk.CTk):
         threading.Thread(
             target=self._transcriber.load_model, daemon=True, name="model-load"
         ).start()
-        threading.Thread(
-            target=AudioCapture.warmup, daemon=True
-        ).start()
+        threading.Thread(target=AudioCapture.warmup, daemon=True).start()
 
     # ── Hotkey polling ───────────────────────────────────────────────────
 
@@ -380,7 +398,9 @@ class App(ctk.CTk):
         try:
             self.bind("<MouseWheel>", self._on_settings_mousewheel, add="+")
         except Exception:
-            logger.debug("Unable to bind mouse wheel for settings window", exc_info=True)
+            logger.debug(
+                "Unable to bind mouse wheel for settings window", exc_info=True
+            )
 
     def _on_settings_mousewheel(self, event):
         canvas = getattr(self, "_settings_scroll_canvas", None)
@@ -517,7 +537,9 @@ class App(ctk.CTk):
         """Enable replacement add button only if both inputs have text."""
         wrong = self._widgets["rep_wrong"].get().strip()
         right = self._widgets["rep_right"].get().strip()
-        self._widgets["rep_add_btn"].configure(state="normal" if wrong and right else "disabled")
+        self._widgets["rep_add_btn"].configure(
+            state="normal" if wrong and right else "disabled"
+        )
 
     def _on_rep_wrong_return(self):
         """Handle return key in replacement 'wrong' field."""
@@ -613,6 +635,7 @@ class App(ctk.CTk):
         """Show the settings window."""
         try:
             from AppKit import NSApplication
+
             NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
         except Exception:
             pass
