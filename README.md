@@ -23,7 +23,7 @@ Your audio never leaves your Mac. Aside makes zero network calls during normal o
 
 ## Download
 
-Download the latest `Aside-x.x.x.dmg` from the [Releases page](https://github.com/blakeyoh/aside/releases). Open the DMG, drag Aside to Applications, then double-click to launch.
+Download the latest `Aside-SwiftUI-x.x.x.dmg` from the [Releases page](https://github.com/blakeyoh/aside/releases). Open the DMG, drag Aside to Applications, then double-click to launch.
 
 > **First launch:** macOS may show "Apple could not verify…" because Aside is ad-hoc signed, not notarized. **Right-click Aside.app → Open → Open** to bypass this once. After that it opens normally.
 
@@ -63,12 +63,22 @@ source .venv/bin/activate && python -m aside
 
 First launch shows the permissions onboarding window. After permissions are complete, terminal and app launches open Settings so startup is visible and easy to validate. A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
 
-To build a local `.app` for developer testing:
+To smoke-test the SwiftUI shell from a source checkout:
 
 ```bash
 source .venv/bin/activate
-scripts/build_app.sh dev
-open dist/Aside.app
+scripts/smoke_swiftui_launch.sh
+scripts/run_swiftui_spike.sh
+```
+
+To reproduce the installable SwiftUI release bundle locally:
+
+```bash
+source .venv/bin/activate
+MODEL_REVISION=$(git ls-remote https://huggingface.co/Systran/faster-whisper-base main | cut -f1) \
+  scripts/build_swiftui_app.sh release
+scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app
+scripts/package_swiftui_dmg.sh
 ```
 
 Developer mode downloads the Whisper model once into the local cache. Release DMGs bundle the model inside `Aside.app`, so normal app use makes no network calls.

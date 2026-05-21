@@ -84,7 +84,7 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] After all three are green, "Get Started" becomes enabled and turns green
 - [ ] Click "Get Started" → onboarding closes and Settings opens
 - [ ] Verify: `cat ~/.aside/config.json | grep first_run_complete` shows `true`
-- [ ] If Accessibility or Input Monitoring still shows red even though System Settings shows Aside enabled, remove the old Aside entry from that privacy pane, add the rebuilt `dist/Aside.app` again, then quit and relaunch Aside. Local dev bundles are ad-hoc signed, so stale TCC entries can look enabled while the rebuilt app still reads denied.
+- [ ] If Accessibility or Input Monitoring still shows red even though System Settings shows Aside enabled, remove the old Aside entry from that privacy pane, add the rebuilt `dist-swiftui/Aside.app` again, then quit and relaunch Aside. Local dev bundles are ad-hoc signed, so stale TCC entries can look enabled while the rebuilt app still reads denied.
 - [ ] **Result:** ________________________________________
 
 ### T1.4: Settings Window
@@ -103,23 +103,24 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Expected: Settings opens automatically and menu bar shows Aside microphone icon
 - [ ] **Result:** ________________________________________
 
-### T1.6: Developer App Build and Finder/Dock Launch
+### T1.6: Developer SwiftUI Launch Smoke
 
 - [ ] Quit Aside from the menu bar
-- [ ] Run: `source .venv/bin/activate && scripts/build_app.sh dev`
-- [ ] Verify: `dist/Aside.app/Contents/Resources/aside-logo.png` exists
-- [ ] Verify: `/usr/libexec/PlistBuddy -c "Print :LSUIElement" dist/Aside.app/Contents/Info.plist` prints `false`
-- [ ] Double-click `dist/Aside.app`
+- [ ] Run: `source .venv/bin/activate && scripts/smoke_swiftui_launch.sh`
+- [ ] Expected: output ends with `SwiftUI launch smoke passed.`
+- [ ] Run: `scripts/run_swiftui_spike.sh`
 - [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
 - [ ] Expected: Aside appears as a regular app (Dock icon/running indicator may be visible)
 - [ ] **Result:** ________________________________________
 
-### T1.7: Release DMG Build
+### T1.7: SwiftUI Release DMG Build
 
 - [ ] Set `MODEL_REVISION` to a pinned 40-character SHA from `git ls-remote https://huggingface.co/Systran/faster-whisper-base main`
-- [ ] Run: `MODEL_REVISION=<sha> scripts/build_app.sh release`
-- [ ] Run: `scripts/package_dmg.sh`
-- [ ] Expected: `dist/Aside-1.3.0.dmg` exists and contains `Aside.app`
+- [ ] Run: `MODEL_REVISION=<sha> scripts/build_swiftui_app.sh release`
+- [ ] Run: `scripts/verify_swiftui_bundle.sh dist-swiftui/Aside.app`
+- [ ] Run: `scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app`
+- [ ] Run: `scripts/package_swiftui_dmg.sh`
+- [ ] Expected: `dist-swiftui/Aside-SwiftUI-1.3.0.dmg` exists and contains `Aside.app`
 - [ ] Install from the DMG into `/Applications`
 - [ ] Double-click `/Applications/Aside.app`
 - [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon

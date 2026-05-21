@@ -27,7 +27,7 @@ else
 fi
 
 echo "==> Verifying codesign"
-codesign --verify --deep --strict --verbose=2 dist-swiftui/Aside.app
+scripts/verify_swiftui_bundle.sh --codesign dist-swiftui/Aside.app
 
 STAGING=$(mktemp -d)
 trap 'rm -rf "$STAGING"' EXIT

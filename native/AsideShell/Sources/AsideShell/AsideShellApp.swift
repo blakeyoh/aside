@@ -127,7 +127,7 @@ struct AsideShellApp: App {
         let helperSupervisor = HelperSupervisor()
         _supervisor = StateObject(wrappedValue: helperSupervisor)
 
-        if ProcessInfo.processInfo.environment["ASIDE_SWIFTUI_PROTOCOL_SMOKE"] == "1" {
+        if swiftProtocolSmokeMode() {
             DispatchQueue.main.async {
                 helperSupervisor.startHelper()
             }
