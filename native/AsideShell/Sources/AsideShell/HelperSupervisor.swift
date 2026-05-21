@@ -75,8 +75,11 @@ final class HelperSupervisor: ObservableObject {
             guard !data.isEmpty else {
                 return
             }
-            Task { @MainActor in
-                self?.consumeStdout(data)
+            guard let supervisor = self else {
+                return
+            }
+            Task { @MainActor [supervisor, data] in
+                supervisor.consumeStdout(data)
             }
         }
 
@@ -85,14 +88,21 @@ final class HelperSupervisor: ObservableObject {
             guard !data.isEmpty else {
                 return
             }
-            Task { @MainActor in
-                self?.consumeStderr(data)
+            guard let supervisor = self else {
+                return
+            }
+            Task { @MainActor [supervisor, data] in
+                supervisor.consumeStderr(data)
             }
         }
 
         process.terminationHandler = { [weak self] finishedProcess in
-            Task { @MainActor in
-                self?.handleTermination(status: finishedProcess.terminationStatus)
+            let status = finishedProcess.terminationStatus
+            guard let supervisor = self else {
+                return
+            }
+            Task { @MainActor [supervisor, status] in
+                supervisor.handleTermination(status: status)
             }
         }
 
