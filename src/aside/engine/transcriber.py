@@ -129,7 +129,7 @@ class Transcriber:
                 current_mtime = 0.0
 
             cached_dict = self._dict_cache
-            if cached_dict is None or current_mtime > self._dict_mtime:
+            if cached_dict is None or current_mtime != self._dict_mtime:
                 cached_dict = parse_dictionary(self._dictionary_path)
                 self._dict_cache = cached_dict
                 self._dict_mtime = current_mtime
