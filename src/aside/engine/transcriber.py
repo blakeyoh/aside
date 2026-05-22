@@ -13,6 +13,7 @@ Orchestrates the 8-stage pipeline:
 Stages 3-8 happen in this module's transcribe() method.
 """
 import logging
+import os
 import threading
 from typing import Callable
 
@@ -21,7 +22,7 @@ from aside.commands.numbers import NumberMode
 from aside.commands.parser import Command, parse_transcript
 from aside.config import DICTIONARY_FILE
 from aside.dictionary.context import ContextBuffer
-from aside.dictionary.hotwords import parse_dictionary
+from aside.dictionary.hotwords import parse_dictionary, DictionaryData
 from aside.dictionary.replacements import apply_replacements
 from aside.engine.injector import inject_text, inject_keystroke
 from aside.punctuation.formatter import format_text
@@ -76,6 +77,8 @@ class Transcriber:
         self._number_mode = NumberMode()
         self._last_injection_length = 0
         self._dictionary_path = DICTIONARY_FILE
+        self._dict_cache_mtime = 0.0
+        self._dict_cache_data = None
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
@@ -117,7 +120,14 @@ class Transcriber:
                 return
 
             # Stage 3: Dictionary Pre-Processing
-            dict_data = parse_dictionary(self._dictionary_path)
+            try:
+                mtime = os.path.getmtime(self._dictionary_path)
+                if self._dict_cache_data is None or mtime > self._dict_cache_mtime:
+                    self._dict_cache_data = parse_dictionary(self._dictionary_path)
+                    self._dict_cache_mtime = mtime
+                dict_data = self._dict_cache_data
+            except OSError:
+                dict_data = DictionaryData()
 
             # Combine defaults with user dictionary
             combined_hotwords = self._hotwords + [
@@ -205,4 +215,5 @@ class Transcriber:
 
     def reload_dictionary(self) -> None:
         """Force re-read of dictionary file (called after UI edits)."""
-        pass
+        self._dict_cache_mtime = 0.0
+        self._dict_cache_data = None
