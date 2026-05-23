@@ -106,11 +106,12 @@ def load_config() -> dict:
 def save_config(cfg: dict) -> bool:
     """Save config to ~/.aside/config.json. Creates directory if needed."""
     try:
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
         CONFIG_FILE.write_text(
             json.dumps(cfg, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        CONFIG_FILE.chmod(0o600)
         return True
     except OSError as exc:
         logger.error("Config save failed: %s", exc)
@@ -121,7 +122,8 @@ def ensure_dictionary_file() -> None:
     """Create ~/.aside/dictionary.txt with template if it doesn't exist."""
     if not DICTIONARY_FILE.exists():
         try:
-            CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
             DICTIONARY_FILE.write_text(DICTIONARY_TEMPLATE, encoding="utf-8")
+            DICTIONARY_FILE.chmod(0o600)
         except OSError as exc:
             logger.warning("Could not create dictionary template: %s", exc)

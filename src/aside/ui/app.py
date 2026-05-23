@@ -84,9 +84,10 @@ def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
 
 def _acquire_lock():
     """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
         fd = open(LOCK_FILE, "w")
+        LOCK_FILE.chmod(0o600)
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
     except OSError:
@@ -535,6 +536,7 @@ class App(ctk.CTk):
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{term}")
+        DICTIONARY_FILE.chmod(0o600)
         entry.delete(0, "end")
         self._check_hw_add_state()
         self._refresh_dict_count()
@@ -550,6 +552,7 @@ class App(ctk.CTk):
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{wrong} \u2192 {right}")
+        DICTIONARY_FILE.chmod(0o600)
         self._widgets["rep_wrong"].delete(0, "end")
         self._widgets["rep_right"].delete(0, "end")
         self._check_rep_add_state()
