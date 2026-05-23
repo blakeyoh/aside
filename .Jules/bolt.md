@@ -1,0 +1,4 @@
+## 2025-05-18 - Caching Parsed Dictionary Data in Transcriber
+
+**Learning:** Caching parsed dictionary files to eliminate redundant disk I/O requires thread-safe assignment. Assigning instance properties `self._cached_dict_data` directly inside the transcription loop creates a small race condition window if another thread (like the UI calling `reload_dictionary`) sets it to `None`.
+**Action:** When working with cross-thread state invalidation, always capture the instance state into a local variable (`local_dict = self._cached_dict_data`) before evaluating it, update the local variable, push it back to the instance property, and then continue using the local variable in the execution path to guarantee thread safety.

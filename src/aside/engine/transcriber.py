@@ -13,6 +13,7 @@ Orchestrates the 8-stage pipeline:
 Stages 3-8 happen in this module's transcribe() method.
 """
 import logging
+import os
 import threading
 from typing import Callable
 
@@ -76,6 +77,8 @@ class Transcriber:
         self._number_mode = NumberMode()
         self._last_injection_length = 0
         self._dictionary_path = DICTIONARY_FILE
+        self._cached_dict_data = None
+        self._cached_dict_mtime = 0.0
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
@@ -117,7 +120,19 @@ class Transcriber:
                 return
 
             # Stage 3: Dictionary Pre-Processing
-            dict_data = parse_dictionary(self._dictionary_path)
+            try:
+                current_mtime = os.path.getmtime(self._dictionary_path)
+            except OSError:
+                current_mtime = 0.0
+
+            local_dict = self._cached_dict_data
+            if local_dict is None or current_mtime > self._cached_dict_mtime:
+                local_dict = parse_dictionary(self._dictionary_path)
+                self._cached_dict_data = local_dict
+                self._cached_dict_mtime = current_mtime
+
+            # Use local variable for thread safety during current execution
+            dict_data = local_dict
 
             # Combine defaults with user dictionary
             combined_hotwords = self._hotwords + [
@@ -205,4 +220,4 @@ class Transcriber:
 
     def reload_dictionary(self) -> None:
         """Force re-read of dictionary file (called after UI edits)."""
-        pass
+        self._cached_dict_data = None
