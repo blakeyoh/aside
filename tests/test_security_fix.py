@@ -1,7 +1,7 @@
 import sys
 from aside import permissions
 from aside.config import DICTIONARY_FILE
-import customtkinter as ctk
+
 
 def test_open_privacy_pane_uses_webbrowser(monkeypatch):
     opened = []
@@ -16,10 +16,12 @@ def test_open_privacy_pane_uses_webbrowser(monkeypatch):
 
 def test_open_dictionary_file_uses_os_file_association(monkeypatch):
     import pytest
+
     if sys.platform != "darwin":
         pytest.skip("Test requires macOS")
 
     from aside.ui import settings
+
     calls = []
 
     class FakeNSURL:
@@ -53,12 +55,18 @@ def test_open_dictionary_file_uses_os_file_association(monkeypatch):
         ("open_url", f"file://{DICTIONARY_FILE}"),
     ]
 
+
 def test_add_hotword_sanitizes_input(monkeypatch, tmp_path):
     import pytest
+
     if sys.platform != "darwin":
         pytest.skip("Test requires macOS")
 
-    monkeypatch.setitem(sys.modules, "AppKit", type("MockAppKit", (), {"NSAlert": type("NSAlert", (), {})})())
+    monkeypatch.setitem(
+        sys.modules,
+        "AppKit",
+        type("MockAppKit", (), {"NSAlert": type("NSAlert", (), {})})(),
+    )
     monkeypatch.setitem(sys.modules, "Quartz", type("MockQuartz", (), {})())
     from aside.ui.app import App
 
@@ -67,8 +75,21 @@ def test_add_hotword_sanitizes_input(monkeypatch, tmp_path):
     monkeypatch.setattr("aside.ui.app.ensure_dictionary_file", lambda: None)
 
     app = App.__new__(App)
-    app._widgets = {"hw_entry": ctk.CTkEntry(app)}
-    app._widgets["hw_entry"].insert(0, "bad\nword\r")
+
+    class FakeEntry:
+        def __init__(self, val):
+            self.val = val
+
+        def get(self):
+            return self.val
+
+        def delete(self, *args):
+            pass
+
+        def focus(self):
+            pass
+
+    app._widgets = {"hw_entry": FakeEntry("bad\nword\r")}
 
     # Mock methods called after writing
     app._check_hw_add_state = lambda: None
@@ -82,10 +103,15 @@ def test_add_hotword_sanitizes_input(monkeypatch, tmp_path):
 
 def test_add_replacement_sanitizes_input(monkeypatch, tmp_path):
     import pytest
+
     if sys.platform != "darwin":
         pytest.skip("Test requires macOS")
 
-    monkeypatch.setitem(sys.modules, "AppKit", type("MockAppKit", (), {"NSAlert": type("NSAlert", (), {})})())
+    monkeypatch.setitem(
+        sys.modules,
+        "AppKit",
+        type("MockAppKit", (), {"NSAlert": type("NSAlert", (), {})})(),
+    )
     monkeypatch.setitem(sys.modules, "Quartz", type("MockQuartz", (), {})())
     from aside.ui.app import App
 
@@ -94,12 +120,24 @@ def test_add_replacement_sanitizes_input(monkeypatch, tmp_path):
     monkeypatch.setattr("aside.ui.app.ensure_dictionary_file", lambda: None)
 
     app = App.__new__(App)
+
+    class FakeEntry:
+        def __init__(self, val):
+            self.val = val
+
+        def get(self):
+            return self.val
+
+        def delete(self, *args):
+            pass
+
+        def focus(self):
+            pass
+
     app._widgets = {
-        "rep_wrong": ctk.CTkEntry(app),
-        "rep_right": ctk.CTkEntry(app),
+        "rep_wrong": FakeEntry("bad\nwrong\r"),
+        "rep_right": FakeEntry("good\nright\r"),
     }
-    app._widgets["rep_wrong"].insert(0, "bad\nwrong\r")
-    app._widgets["rep_right"].insert(0, "good\nright\r")
 
     # Mock methods called after writing
     app._check_rep_add_state = lambda: None
