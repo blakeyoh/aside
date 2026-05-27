@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 from aside.resources import resource_path
 
+
 def test_resource_path_meipass(monkeypatch):
     """Test resource_path when sys._MEIPASS is defined (PyInstaller mode)."""
     mock_meipass = "/tmp/_MEIPASS12345"
@@ -9,6 +10,7 @@ def test_resource_path_meipass(monkeypatch):
 
     path = resource_path("test.txt")
     assert path == Path(mock_meipass) / "test.txt"
+
 
 def test_resource_path_frozen_py2app(monkeypatch):
     """Test resource_path when sys.frozen is True (py2app mode)."""
@@ -24,6 +26,7 @@ def test_resource_path_frozen_py2app(monkeypatch):
     # Expected: Aside.app/Contents/Resources/test.txt
     expected = Path("/Applications/Aside.app/Contents/Resources/test.txt")
     assert path == expected
+
 
 def test_resource_path_source(monkeypatch):
     """Test resource_path in source mode (not frozen)."""

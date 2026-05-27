@@ -2,8 +2,8 @@
 
 Each action is a thin wrapper that calls the injector module.
 """
-from aside.commands.parser import Command
 
+from aside.commands.parser import Command
 
 # Maps commands to the text/keystroke they inject
 _PUNCTUATION_MAP = {

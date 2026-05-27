@@ -1,5 +1,4 @@
-import pytest
-from aside.dictionary.hotwords import parse_dictionary, DictionaryData
+from aside.dictionary.hotwords import parse_dictionary
 
 
 class TestParseDictionary:

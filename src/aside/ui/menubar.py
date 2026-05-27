@@ -2,6 +2,7 @@
 
 Creates the system status bar item with app icon and dropdown menu.
 """
+
 import logging
 from pathlib import Path
 from typing import Callable, Optional
@@ -12,12 +13,18 @@ STATUS_ICON_SIZE = 18.0
 
 try:
     from AppKit import (
-        NSApplication, NSApplicationActivationPolicyRegular,
-        NSObject, NSAlert, NSSound,
-        NSStatusBar, NSVariableStatusItemLength,
-        NSMenu, NSMenuItem,
+        NSApplication,
+        NSApplicationActivationPolicyRegular,
+        NSObject,
+        NSAlert,
+        NSSound,
+        NSStatusBar,
+        NSVariableStatusItemLength,
+        NSMenu,
+        NSMenuItem,
         NSImage,
     )
+
     APPKIT_AVAILABLE = True
 except Exception:
     APPKIT_AVAILABLE = False
@@ -37,6 +44,7 @@ def play_sound(name: str) -> None:
 def hotkey_display(cfg: dict) -> str:
     """Format a hotkey config as a human-readable string."""
     from aside.ui.theme import MOD_SYMBOLS, KEY_DISPLAY
+
     mods = cfg.get("modifiers", [])
     trigger = cfg.get("trigger", "space")
     parts = [
@@ -49,6 +57,7 @@ def hotkey_display(cfg: dict) -> str:
 
 
 if APPKIT_AVAILABLE:
+
     class _MenuDelegate(NSObject):
         _show_cb = None
         _quit_cb = None
@@ -61,8 +70,7 @@ if APPKIT_AVAILABLE:
                 except Exception:
                     logger.exception("Failed to run menu callback: showWindow")
                     self._show_callback_failure_alert(
-                        "Unable to open settings.",
-                        "Please check logs for details."
+                        "Unable to open settings.", "Please check logs for details."
                     )
 
         def showPermissions_(self, sender):
@@ -72,8 +80,7 @@ if APPKIT_AVAILABLE:
                 except Exception:
                     logger.exception("Failed to run menu callback: showPermissions")
                     self._show_callback_failure_alert(
-                        "Unable to open permissions.",
-                        "Please check logs for details."
+                        "Unable to open permissions.", "Please check logs for details."
                     )
 
         @staticmethod

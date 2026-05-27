@@ -1,4 +1,3 @@
-import pytest
 from aside.dictionary.replacements import apply_replacements, _get_compiled_pattern
 
 
@@ -8,7 +7,9 @@ class TestApplyReplacements:
 
     def test_simple_replacement(self):
         rules = {"hip a": "HIPAA"}
-        assert apply_replacements("the hip a regulation", rules) == "the HIPAA regulation"
+        assert (
+            apply_replacements("the hip a regulation", rules) == "the HIPAA regulation"
+        )
 
     def test_case_insensitive(self):
         rules = {"hip a": "HIPAA"}
@@ -28,7 +29,10 @@ class TestApplyReplacements:
 
     def test_replacement_with_arrow_in_value(self):
         rules = {"go to": "navigate → proceed"}
-        assert apply_replacements("go to the store", rules) == "navigate → proceed the store"
+        assert (
+            apply_replacements("go to the store", rules)
+            == "navigate → proceed the store"
+        )
 
     def test_empty_text(self):
         assert apply_replacements("", {"a": "b"}) == ""

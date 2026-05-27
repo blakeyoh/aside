@@ -3,6 +3,7 @@
 Injects text at the current cursor position using CGEventCreateKeyboardEvent.
 Does NOT touch the clipboard. Works in any text field system-wide.
 """
+
 try:
     from Quartz import (
         CGEventCreateKeyboardEvent,
