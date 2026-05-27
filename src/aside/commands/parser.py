@@ -190,9 +190,11 @@ def _append_text(parts: list[str], text: str) -> None:
     if not chunk:
         return
     if parts:
-        current = "".join(parts)
-        if current and current[-1] not in (" ", "\n"):
-            parts.append(" ")
+        for i in range(len(parts) - 1, -1, -1):
+            if parts[i]:
+                if parts[i][-1] not in (" ", "\n"):
+                    parts.append(" ")
+                break
     parts.append(chunk)
 
 
@@ -227,7 +229,9 @@ def _append_dictation_output(parts: list[str], cmd: Command) -> None:
         parts.append(output)
         return
 
-    current = "".join(parts)
-    if current and current[-1] in _ARTIFACT_PUNCT:
-        parts[-1] = parts[-1].rstrip(_ARTIFACT_PUNCT).rstrip()
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i]:
+            if parts[i][-1] in _ARTIFACT_PUNCT:
+                parts[-1] = parts[-1].rstrip(_ARTIFACT_PUNCT).rstrip()
+            break
     parts.append(output)
