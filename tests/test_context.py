@@ -1,4 +1,3 @@
-import pytest
 from aside.dictionary.context import ContextBuffer
 
 

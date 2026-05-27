@@ -1,4 +1,5 @@
 """Rolling context buffer for Whisper's initial_prompt parameter."""
+
 from collections import deque
 
 
@@ -46,4 +47,4 @@ class ContextBuffer:
         words = text.split()
         if len(words) <= self._max_tokens:
             return text
-        return " ".join(words[:self._max_tokens])
+        return " ".join(words[: self._max_tokens])
