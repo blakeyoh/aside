@@ -12,6 +12,7 @@ Orchestrates the 8-stage pipeline:
 
 Stages 3-8 happen in this module's transcribe() method.
 """
+
 import logging
 import threading
 from typing import Callable
@@ -124,7 +125,9 @@ class Transcriber:
                 hw for hw in dict_data.hotwords if hw not in self._hotwords
             ]
             hotwords_str = " ".join(combined_hotwords) or None
-            initial_prompt = self._context.build_initial_prompt(combined_hotwords) or None
+            initial_prompt = (
+                self._context.build_initial_prompt(combined_hotwords) or None
+            )
 
             # Stage 4: Whisper Transcription
             kwargs = {"vad_filter": True}
@@ -168,7 +171,9 @@ class Transcriber:
                 cleaned_text = apply_replacements(cleaned_text, combined_rules)
                 cleaned_text = format_text(
                     cleaned_text,
-                    capitalization=self._punctuation_config.get("capitalization", "sentence"),
+                    capitalization=self._punctuation_config.get(
+                        "capitalization", "sentence"
+                    ),
                     smart_quotes=self._punctuation_config.get("smart_quotes", False),
                     trailing_space=self._punctuation_config.get("trailing_space", True),
                 )

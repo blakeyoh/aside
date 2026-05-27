@@ -4,6 +4,7 @@ Shows Microphone, Accessibility, and Input Monitoring status rows
 with deep-links to System Settings. Polls every 1.5 s while visible.
 Can be shown from the Permissions… menu item on subsequent launches.
 """
+
 import logging
 from typing import Callable
 
@@ -16,7 +17,19 @@ from aside.permissions import (
     check_microphone,
     request_privacy_access,
 )
-from aside.ui.theme import ACCENT, ACCENT_HOVER, BG, BG2, DANGER, FG, FG2, FG_INVERSE, FONT, SEP, SUCCESS
+from aside.ui.theme import (
+    ACCENT,
+    ACCENT_HOVER,
+    BG,
+    BG2,
+    DANGER,
+    FG,
+    FG2,
+    FG_INVERSE,
+    FONT,
+    SEP,
+    SUCCESS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,13 +89,17 @@ class OnboardingWindow(ctk.CTkToplevel):
 
         # Header
         ctk.CTkLabel(
-            self, text="Welcome to Aside",
-            font=(FONT, 20, "bold"), text_color=FG,
+            self,
+            text="Welcome to Aside",
+            font=(FONT, 20, "bold"),
+            text_color=FG,
         ).pack(pady=(28, 4), **pad)
 
         ctk.CTkLabel(
-            self, text="Grant these permissions before recording.",
-            font=(FONT, 13), text_color=FG2,
+            self,
+            text="Grant these permissions before recording.",
+            font=(FONT, 13),
+            text_color=FG2,
         ).pack(pady=(0, 20), **pad)
 
         # Divider
@@ -102,7 +119,8 @@ class OnboardingWindow(ctk.CTkToplevel):
         ctk.CTkLabel(
             self,
             text="After granting Accessibility, restart Aside.",
-            font=(FONT, 11), text_color=FG2,
+            font=(FONT, 11),
+            text_color=FG2,
         ).pack(pady=(10, 0), **pad)
 
         # Spacer
@@ -138,13 +156,17 @@ class OnboardingWindow(ctk.CTkToplevel):
         text_frame.pack(side="left")
 
         ctk.CTkLabel(
-            text_frame, text=row["label"],
-            font=(FONT, 13, "bold"), text_color=FG,
+            text_frame,
+            text=row["label"],
+            font=(FONT, 13, "bold"),
+            text_color=FG,
             anchor="w",
         ).pack(anchor="w")
         ctk.CTkLabel(
-            text_frame, text=row["description"],
-            font=(FONT, 11), text_color=FG2,
+            text_frame,
+            text=row["description"],
+            font=(FONT, 11),
+            text_color=FG2,
             anchor="w",
         ).pack(anchor="w")
 
@@ -230,6 +252,7 @@ class OnboardingWindow(ctk.CTkToplevel):
         """Bring window to the front."""
         try:
             from AppKit import NSApplication
+
             NSApplication.sharedApplication().activateIgnoringOtherApps_(True)
         except Exception:
             pass

@@ -31,7 +31,10 @@ def test_helper_entrypoint_reports_permissions_and_shuts_down_cleanly():
             if not line:
                 break
             events.append(json.loads(line))
-            if any(event.get("type") == "status" and event.get("state") == "ready" for event in events):
+            if any(
+                event.get("type") == "status" and event.get("state") == "ready"
+                for event in events
+            ):
                 break
 
         assert any(event.get("type") == "hello" for event in events)

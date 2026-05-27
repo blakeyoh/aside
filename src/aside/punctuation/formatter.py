@@ -5,12 +5,13 @@ Three configurable settings:
 - smart_quotes: bool
 - trailing_space: bool (space after punctuation marks)
 """
+
 import re
 
 _SENTENCE_ENDINGS = ".?!"
 
-_PUNCT_NO_SPACE_RE = re.compile(r'([.?!,;:])([^\s])')
-_MULTIPLE_SPACES_RE = re.compile(r'  +')
+_PUNCT_NO_SPACE_RE = re.compile(r"([.?!,;:])([^\s])")
+_MULTIPLE_SPACES_RE = re.compile(r"  +")
 _STRAIGHT_QUOTES_RE = re.compile(r'"([^"]*)"')
 
 
@@ -47,8 +48,8 @@ def format_text(
 
 def _ensure_trailing_space(text: str) -> str:
     """Add space after punctuation marks if not already present."""
-    result = _PUNCT_NO_SPACE_RE.sub(r'\1 \2', text)
-    result = _MULTIPLE_SPACES_RE.sub(' ', result)
+    result = _PUNCT_NO_SPACE_RE.sub(r"\1 \2", text)
+    result = _MULTIPLE_SPACES_RE.sub(" ", result)
     return result
 
 
@@ -73,6 +74,6 @@ def _sentence_case(text: str) -> str:
 def _apply_smart_quotes(text: str) -> str:
     """Replace straight quotes with curly/smart quotes."""
     result = text
-    result = _STRAIGHT_QUOTES_RE.sub('\u201c\\1\u201d', result)
+    result = _STRAIGHT_QUOTES_RE.sub("\u201c\\1\u201d", result)
     result = result.replace("'", "\u2019")
     return result

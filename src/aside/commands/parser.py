@@ -9,6 +9,7 @@ Two categories of commands:
 - Action commands (edit/mode): only trigger at sentence boundaries (start/end of
   text, or immediately after punctuation).
 """
+
 import re
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -61,19 +62,15 @@ _ACTION_PHRASES: list[tuple[str, Command]] = [
 # All phrases for exhaustive matching, dictation first (longest match wins)
 _ALL_PHRASES: list[tuple[str, Command, bool]] = [
     (phrase, cmd, True) for phrase, cmd in _DICTATION_PHRASES
-] + [
-    (phrase, cmd, False) for phrase, cmd in _ACTION_PHRASES
-]
+] + [(phrase, cmd, False) for phrase, cmd in _ACTION_PHRASES]
 
 _PHRASE_LOOKUP = {
-    phrase: (cmd, is_dictation)
-    for phrase, cmd, is_dictation in _ALL_PHRASES
+    phrase: (cmd, is_dictation) for phrase, cmd, is_dictation in _ALL_PHRASES
 }
 _PHRASE_PATTERN = re.compile(
     r"\b("
     + "|".join(
-        re.escape(phrase)
-        for phrase in sorted(_PHRASE_LOOKUP, key=len, reverse=True)
+        re.escape(phrase) for phrase in sorted(_PHRASE_LOOKUP, key=len, reverse=True)
     )
     + r")\b",
     re.IGNORECASE,

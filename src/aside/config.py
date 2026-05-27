@@ -3,6 +3,7 @@
 Config file: ~/.aside/config.json
 Migration: WhisperDictation → HushedHippo → Aside (checks in order)
 """
+
 import json
 import logging
 from pathlib import Path
@@ -52,7 +53,11 @@ DICTIONARY_TEMPLATE = """\
 # Old config paths to check for migration (newest first)
 _MIGRATION_PATHS = [
     Path.home() / "Library" / "Application Support" / "HushedHippo" / "config.json",
-    Path.home() / "Library" / "Application Support" / "WhisperDictation" / "config.json",
+    Path.home()
+    / "Library"
+    / "Application Support"
+    / "WhisperDictation"
+    / "config.json",
 ]
 
 
