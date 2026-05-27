@@ -1,4 +1,3 @@
-import pytest
 from aside.commands.numbers import NumberMode
 
 

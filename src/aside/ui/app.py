@@ -33,7 +33,7 @@ from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.onboarding import OnboardingWindow
 from aside.ui.settings import build_settings
-from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
+from aside.ui.theme import BG, FG, FG2, FONT, POLL_MS, STATUS_MAP
 
 logger = logging.getLogger(__name__)
 

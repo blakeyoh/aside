@@ -1,5 +1,4 @@
 from unittest.mock import Mock
-import pytest
 from aside.commands.actions import execute_commands
 from aside.commands.parser import Command
 

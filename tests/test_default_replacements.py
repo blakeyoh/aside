@@ -1,4 +1,3 @@
-import pytest
 from aside.engine.transcriber import Transcriber
 
 class _Segment:

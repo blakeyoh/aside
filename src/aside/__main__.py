@@ -1,5 +1,4 @@
 """Entry point for `python -m aside` and `aside` console script."""
-import sys
 
 
 def main():

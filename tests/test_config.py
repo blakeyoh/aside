@@ -1,6 +1,6 @@
 import json
 import pytest
-from aside.config import load_config, save_config, DEFAULT_CONFIG, CONFIG_DIR
+from aside.config import load_config, save_config
 
 
 @pytest.fixture

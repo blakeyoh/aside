@@ -3,7 +3,6 @@
 Sections: Model, Hotkey, Toggle Hotkey, Dictionary, Language, Punctuation.
 """
 import tkinter as tk
-import webbrowser
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk

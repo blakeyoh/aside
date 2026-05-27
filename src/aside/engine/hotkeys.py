@@ -8,7 +8,7 @@ Call poll() from your UI's event loop (~10ms interval) to drain the queue.
 """
 import queue
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
 try:
     from Quartz import (
