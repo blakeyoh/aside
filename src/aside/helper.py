@@ -19,7 +19,13 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, TextIO
 
-from aside.config import DEFAULT_CONFIG, DICTIONARY_FILE, ensure_dictionary_file, load_config, save_config
+from aside.config import (
+    DEFAULT_CONFIG,
+    DICTIONARY_FILE,
+    ensure_dictionary_file,
+    load_config,
+    save_config,
+)
 from aside.dictionary.hotwords import MAX_TERMS, parse_dictionary
 from aside.engine.audio import AudioCapture
 from aside.engine.hotkeys import (
@@ -215,7 +221,9 @@ class AsideStdioHelper:
 
         self.cfg = self.dependencies.config_loader()
         if hotkeys_equal(self.cfg.get("hotkey"), self.cfg.get("toggle_hotkey")):
-            logger.warning("Toggle hotkey matched push-to-talk hotkey; disabling toggle")
+            logger.warning(
+                "Toggle hotkey matched push-to-talk hotkey; disabling toggle"
+            )
             self.cfg["toggle_hotkey"] = None
             self.dependencies.config_saver(self.cfg)
 
@@ -254,7 +262,9 @@ class AsideStdioHelper:
         self.emit_permissions()
         self._set_status(STATUS_LOADING)
         self._start_components()
-        threading.Thread(target=self._read_stdin, daemon=True, name="helper-stdin").start()
+        threading.Thread(
+            target=self._read_stdin, daemon=True, name="helper-stdin"
+        ).start()
 
         try:
             while not self._stop.is_set():
@@ -455,6 +465,7 @@ class AsideStdioHelper:
 
     def _add_hotword(self, term: str) -> None:
         term = term.strip()
+        term = term.replace("\n", " ").replace("\r", "")
         if not term:
             self.emit({"type": "error", "message": "hotword cannot be empty"})
             return
@@ -474,9 +485,13 @@ class AsideStdioHelper:
 
     def _add_replacement(self, wrong: str, right: str) -> None:
         wrong = wrong.strip()
+        wrong = wrong.replace("\n", " ").replace("\r", "")
         right = right.strip()
+        right = right.replace("\n", " ").replace("\r", "")
         if not wrong or not right:
-            self.emit({"type": "error", "message": "replacement fields cannot be empty"})
+            self.emit(
+                {"type": "error", "message": "replacement fields cannot be empty"}
+            )
             return
         data = parse_dictionary(DICTIONARY_FILE)
         if data.term_count >= MAX_TERMS:
@@ -512,7 +527,9 @@ class AsideStdioHelper:
         self._transcriber.reload_dictionary()
         self.emit_dictionary()
 
-    def _write_dictionary(self, hotwords: list[str], replacements: dict[str, str]) -> None:
+    def _write_dictionary(
+        self, hotwords: list[str], replacements: dict[str, str]
+    ) -> None:
         ensure_dictionary_file()
         lines = [
             "# Aside Custom Dictionary",
