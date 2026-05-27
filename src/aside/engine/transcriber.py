@@ -63,6 +63,8 @@ class Transcriber:
         self._lock = threading.Lock()
         self.model_size = model_size
         self.language = language
+        from aside.dictionary.replacements import _get_compiled_pattern
+
         self._punctuation_config = punctuation_config or {
             "capitalization": "sentence",
             "smart_quotes": False,
@@ -70,6 +72,12 @@ class Transcriber:
         }
         self._hotwords = hotwords or []
         self._replacements = replacements or {}
+
+        # Pre-compile default replacements to avoid recompiling on every transcription
+        self._compiled_replacements = [
+            (_get_compiled_pattern(k), v, k) for k, v in self._replacements.items()
+        ]
+
         self._on_status = on_status or (lambda _: None)
         self._on_transcription = on_transcription or (lambda _: None)
 
@@ -80,6 +88,10 @@ class Transcriber:
         self._dictionary_path = DICTIONARY_FILE
         self._dict_cache = None
         self._dict_mtime = 0.0
+
+        # Caching for combined dictionary compiled replacements
+        self._cached_combined_compiled = None
+        self._last_dict_data_id = None
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
@@ -177,13 +189,22 @@ class Transcriber:
 
             # Stage 6: Post-Processing
             if cleaned_text:
-                # Merge replacements: user rules override and come first
-                combined_rules = dict_data.replacements.copy()
-                for k, v in self._replacements.items():
-                    if k not in combined_rules:
-                        combined_rules[k] = v
+                # Combine replacements: user rules override and come first
+                current_dict_id = id(dict_data)
+                if (
+                    self._cached_combined_compiled is None
+                    or self._last_dict_data_id != current_dict_id
+                ):
+                    combined = list(dict_data.compiled_replacements)
+                    for pattern, replacement, key in self._compiled_replacements:
+                        if key not in dict_data.replacements:
+                            combined.append((pattern, replacement))
+                    self._cached_combined_compiled = combined
+                    self._last_dict_data_id = current_dict_id
 
-                cleaned_text = apply_replacements(cleaned_text, combined_rules)
+                cleaned_text = apply_replacements(
+                    cleaned_text, self._cached_combined_compiled
+                )
                 cleaned_text = format_text(
                     cleaned_text,
                     capitalization=self._punctuation_config.get(

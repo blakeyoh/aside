@@ -1,4 +1,3 @@
-import pytest
 from aside.commands.parser import parse_commands, parse_transcript, Command
 
 
