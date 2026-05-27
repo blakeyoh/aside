@@ -33,53 +33,19 @@ from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.onboarding import OnboardingWindow
 from aside.ui.settings import build_settings
+from aside.ui.launch import (
+    UI_ACTION_SHOW_ONBOARDING,
+    UI_ACTION_SHOW_SETTINGS,
+    initial_launch_target,
+    register_macos_reopen_handlers,
+    scroll_units_from_delta,
+)
 from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
 
 logger = logging.getLogger(__name__)
 
 ICON_PATH = resource_path("aside-logo.png")
 LOCK_FILE = CONFIG_DIR / "aside.lock"
-UI_ACTION_SHOW_SETTINGS = "show_settings"
-UI_ACTION_SHOW_ONBOARDING = "show_onboarding"
-
-
-def initial_launch_target(config: dict) -> str:
-    """Return the first visible surface to show after startup."""
-    return "settings" if config.get("first_run_complete") else "onboarding"
-
-
-def register_macos_reopen_handlers(root, callback) -> tuple[str, ...]:
-    """Register Tk macOS app-menu callbacks that reopen the settings window."""
-    if sys.platform != "darwin":
-        return ()
-
-    registered = []
-    for command_name in ("tk::mac::ReopenApplication", "tk::mac::ShowPreferences"):
-        try:
-            root.createcommand(command_name, callback)
-            registered.append(command_name)
-        except Exception:
-            logger.debug("Unable to register %s", command_name, exc_info=True)
-    return tuple(registered)
-
-
-def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
-    """Convert a Tk MouseWheel delta into conservative canvas scroll units."""
-    try:
-        numeric_delta = float(delta)
-    except (TypeError, ValueError):
-        return 0
-
-    if numeric_delta == 0:
-        return 0
-
-    if platform.startswith("win"):
-        magnitude = int(abs(numeric_delta) / 120)
-    else:
-        magnitude = int(abs(numeric_delta))
-
-    magnitude = max(1, min(magnitude, 12))
-    return -magnitude if numeric_delta > 0 else magnitude
 
 
 def _acquire_lock():

@@ -5,6 +5,17 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
+# Spawns a real `python -m aside.helper` subprocess, which imports the native
+# audio stack (numpy/sounddevice) at module load. Those aren't available off
+# macOS and in-process conftest stubs don't reach the child, so skip here and
+# rely on the macOS CI workflow to exercise it.
+pytestmark = pytest.mark.skipif(
+    sys.platform != "darwin",
+    reason="helper subprocess needs the real macOS native stack; covered by macOS CI",
+)
+
 
 def test_helper_entrypoint_reports_permissions_and_shuts_down_cleanly():
     repo_root = Path(__file__).resolve().parents[1]

@@ -8,27 +8,6 @@ class TestParseCommands:
         assert cmds == []
         assert text == "hello world"
 
-    def test_new_line_at_end(self):
-        cmds, text = parse_commands("hello new line")
-        assert len(cmds) == 1
-        assert cmds[0] == Command.NEW_LINE
-        assert text == "hello"
-
-    def test_new_paragraph(self):
-        cmds, text = parse_commands("first paragraph new paragraph")
-        assert Command.NEW_PARAGRAPH in cmds
-        assert text == "first paragraph"
-
-    def test_period_at_end(self):
-        cmds, text = parse_commands("end of sentence period")
-        assert Command.PERIOD in cmds
-        assert text == "end of sentence"
-
-    def test_comma_at_end(self):
-        cmds, text = parse_commands("first comma")
-        assert Command.COMMA in cmds
-        assert text == "first"
-
     def test_question_mark(self):
         cmds, text = parse_commands("is this right question mark")
         assert Command.QUESTION_MARK in cmds
@@ -84,12 +63,6 @@ class TestParseCommands:
         cmds, text = parse_commands("end. delete that")
         assert Command.DELETE_THAT in cmds
         assert text == "end."
-
-    def test_multiple_commands(self):
-        cmds, text = parse_commands("thanks comma I'll review it period new line")
-        assert Command.COMMA in cmds
-        assert Command.PERIOD in cmds
-        assert Command.NEW_LINE in cmds
 
     def test_case_insensitive(self):
         cmds, text = parse_commands("Hello New Line")

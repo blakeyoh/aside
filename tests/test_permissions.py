@@ -68,3 +68,23 @@ def test_request_privacy_access_opens_settings_when_still_ungranted(monkeypatch)
 
     assert permissions.request_privacy_access("accessibility") == PermissionStatus.DENIED
     assert opened == ["accessibility"]
+
+
+def test_open_privacy_pane_opens_mapped_settings_url(monkeypatch):
+    opened = []
+    monkeypatch.setattr(permissions.webbrowser, "open", opened.append)
+
+    permissions.open_privacy_pane("microphone")
+
+    assert opened == [
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+    ]
+
+
+def test_open_privacy_pane_ignores_unknown_pane(monkeypatch):
+    opened = []
+    monkeypatch.setattr(permissions.webbrowser, "open", opened.append)
+
+    permissions.open_privacy_pane("not_a_real_pane")
+
+    assert opened == []
