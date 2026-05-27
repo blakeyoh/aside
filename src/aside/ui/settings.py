@@ -17,13 +17,16 @@ from aside.ui.theme import (
     BG2,
     FG,
     FG2,
+    FG_INVERSE,
     ACCENT,
+    ACCENT_HOVER,
     SEP,
     FONT,
     MONO,
     MODELS,
     MODEL_LABELS,
     LANGUAGES,
+    DANGER,
 )
 
 if TYPE_CHECKING:
@@ -74,7 +77,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         fg_color=BG2,
         text_color=FG,
         button_color=ACCENT,
-        button_hover_color="#00A8C0",
+        button_hover_color=ACCENT_HOVER,
         dropdown_fg_color=BG2,
         dropdown_text_color=FG,
         dropdown_hover_color=ACCENT,
@@ -110,7 +113,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         fg_color=BG2,
         text_color=FG,
         button_color=ACCENT,
-        button_hover_color="#00A8C0",
+        button_hover_color=ACCENT_HOVER,
         dropdown_fg_color=BG2,
         dropdown_text_color=FG,
         dropdown_hover_color=ACCENT,
@@ -158,7 +161,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         font=(FONT, 12),
         fg_color=BG2,
         text_color=FG2,
-        hover_color="#FF453A",
+        hover_color=DANGER,
         corner_radius=6,
     )
     widgets["hotkey_cancel_btn"] = hotkey_cancel_btn
@@ -190,7 +193,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         font=(FONT, 12),
         fg_color=BG2,
         text_color=FG2,
-        hover_color="#FF453A",
+        hover_color=DANGER,
         corner_radius=6,
     )
     if toggle_cfg:
@@ -215,7 +218,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         font=(FONT, 12),
         fg_color=BG2,
         text_color=FG2,
-        hover_color="#FF453A",
+        hover_color=DANGER,
         corner_radius=6,
     )
     widgets["toggle_cancel_btn"] = toggle_cancel_btn
@@ -376,7 +379,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         font=(FONT, 12),
         text_color=FG2,
         fg_color=ACCENT,
-        hover_color="#00A8C0",
+        hover_color=ACCENT_HOVER,
     ).pack(anchor="w", pady=(6, 0))
     widgets["sq_var"] = sq_var
 
@@ -389,7 +392,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         font=(FONT, 12),
         text_color=FG2,
         fg_color=ACCENT,
-        hover_color="#00A8C0",
+        hover_color=ACCENT_HOVER,
     ).pack(anchor="w", pady=(2, 0))
     widgets["ts_var"] = ts_var
 
@@ -408,8 +411,8 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         text="Apply",
         font=(FONT, 13),
         fg_color=ACCENT,
-        text_color="#0A0A0A",
-        hover_color="#00A8C0",
+        text_color=FG_INVERSE,
+        hover_color=ACCENT_HOVER,
         corner_radius=8,
     )
     apply_btn.pack(anchor="e", pady=(12, 4))
