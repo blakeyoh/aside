@@ -128,8 +128,13 @@ File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined).
 ## Testing
 
 ```bash
-.venv/bin/python3 -m pytest tests/ -v    # 118 unit tests
+.venv/bin/python3 -m pytest tests/ -v    # 149 tests (1 skipped off macOS)
 ```
+
+`tests/conftest.py` stubs the macOS-only GUI/audio libraries when they're
+absent, so the runnable subset works on Linux too (for cloud agents). Tests
+needing the real native stack (e.g. the helper subprocess) skip off macOS and
+are covered by the macOS CI workflow.
 
 Manual smoke test plan: `docs/smoke-test-plan.md` (Boeing FAI-style, 6 phases, go/no-go gates)
 

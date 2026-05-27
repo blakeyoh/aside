@@ -1,27 +1,11 @@
 import sys
-from aside import permissions
+
 from aside.config import DICTIONARY_FILE
-
-
-def test_open_privacy_pane_uses_webbrowser(monkeypatch):
-    opened = []
-    monkeypatch.setattr(permissions.webbrowser, "open", opened.append)
-
-    permissions.open_privacy_pane("microphone")
-
-    assert opened == [
-        "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
-    ]
+from aside.ui import settings
 
 
 def test_open_dictionary_file_uses_os_file_association(monkeypatch):
-    import pytest
-
-    if sys.platform != "darwin":
-        pytest.skip("Test requires macOS")
-
-    from aside.ui import settings
-
+    """Dictionary opens via the OS file association (NSWorkspace), not a shell."""
     calls = []
 
     class FakeNSURL:
@@ -146,4 +130,4 @@ def test_add_replacement_sanitizes_input(monkeypatch, tmp_path):
 
     app._on_add_replacement()
 
-    assert dict_file.read_text(encoding="utf-8") == "\nbad wrong \u2192 good right"
+    assert dict_file.read_text(encoding="utf-8") == "\nbad wrong → good right"

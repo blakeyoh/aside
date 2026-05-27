@@ -1,4 +1,4 @@
-from aside.dictionary.replacements import apply_replacements
+from aside.dictionary.replacements import apply_replacements, _get_compiled_pattern
 
 
 class TestApplyReplacements:
@@ -40,3 +40,12 @@ class TestApplyReplacements:
     def test_unicode_replacement(self):
         rules = {"resume": "résumé"}
         assert apply_replacements("send your resume", rules) == "send your résumé"
+
+    def test_pattern_ending_in_nonword_char_matches(self):
+        # \b would fail after the trailing "."; lookarounds (?<!\w)/(?!\w) handle it
+        rules = {"a.w.s.": "AWS"}
+        assert apply_replacements("deploy a.w.s. today", rules) == "deploy AWS today"
+
+    def test_accepts_precompiled_pattern_list(self):
+        rules = [(_get_compiled_pattern("hip a"), "HIPAA")]
+        assert apply_replacements("the hip a rule", rules) == "the HIPAA rule"
