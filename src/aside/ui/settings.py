@@ -58,7 +58,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
         model_row, variable=model_var, values=MODELS,
         command=lambda val: model_hint.configure(text=MODEL_LABELS.get(val, "")),
         fg_color=BG2, text_color=FG, button_color=ACCENT,
-        button_hover_color="#00A8C0", dropdown_fg_color=BG2,
+        button_hover_color=ACCENT_HOVER, dropdown_fg_color=BG2,
         dropdown_text_color=FG, dropdown_hover_color=ACCENT,
         font=(FONT, 13), width=240,
     )
@@ -85,7 +85,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     ctk.CTkOptionMenu(
         lang_row, variable=lang_var, values=lang_names,
         fg_color=BG2, text_color=FG, button_color=ACCENT,
-        button_hover_color="#00A8C0", dropdown_fg_color=BG2,
+        button_hover_color=ACCENT_HOVER, dropdown_fg_color=BG2,
         dropdown_text_color=FG, dropdown_hover_color=ACCENT,
         font=(FONT, 13), width=200,
     ).pack(side="right")
@@ -116,7 +116,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     hotkey_cancel_btn = ctk.CTkButton(
         hotkey_row, text="Cancel",
         font=(FONT, 12), fg_color=BG2, text_color=FG2,
-        hover_color="#FF453A", corner_radius=6,
+        hover_color=DANGER, corner_radius=6,
     )
     widgets["hotkey_cancel_btn"] = hotkey_cancel_btn
 
@@ -138,7 +138,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     toggle_clear_btn = ctk.CTkButton(
         toggle_row, text="Clear",
         font=(FONT, 12), fg_color=BG2, text_color=FG2,
-        hover_color="#FF453A", corner_radius=6,
+        hover_color=DANGER, corner_radius=6,
     )
     if toggle_cfg:
         toggle_clear_btn.pack(side="right", padx=(4, 0))
@@ -155,7 +155,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     toggle_cancel_btn = ctk.CTkButton(
         toggle_row, text="Cancel",
         font=(FONT, 12), fg_color=BG2, text_color=FG2,
-        hover_color="#FF453A", corner_radius=6,
+        hover_color=DANGER, corner_radius=6,
     )
     widgets["toggle_cancel_btn"] = toggle_cancel_btn
 
@@ -267,7 +267,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     ctk.CTkCheckBox(
         punct_section, text="Smart quotes", variable=sq_var,
         font=(FONT, 12), text_color=FG2,
-        fg_color=ACCENT, hover_color="#00A8C0",
+        fg_color=ACCENT, hover_color=ACCENT_HOVER,
     ).pack(anchor="w", pady=(6, 0))
     widgets["sq_var"] = sq_var
 
@@ -276,7 +276,7 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
     ctk.CTkCheckBox(
         punct_section, text="Space after punctuation", variable=ts_var,
         font=(FONT, 12), text_color=FG2,
-        fg_color=ACCENT, hover_color="#00A8C0",
+        fg_color=ACCENT, hover_color=ACCENT_HOVER,
     ).pack(anchor="w", pady=(2, 0))
     widgets["ts_var"] = ts_var
 
@@ -290,8 +290,8 @@ def build_settings(parent: "App", frame: ctk.CTkFrame) -> dict:
 
     apply_btn = ctk.CTkButton(
         frame, text="Apply",
-        font=(FONT, 13), fg_color=ACCENT, text_color="#0A0A0A",
-        hover_color="#00A8C0", corner_radius=8,
+        font=(FONT, 13), fg_color=ACCENT, text_color=FG_INVERSE,
+        hover_color=ACCENT_HOVER, corner_radius=8,
     )
     apply_btn.pack(anchor="e", pady=(12, 4))
     widgets["apply_btn"] = apply_btn
