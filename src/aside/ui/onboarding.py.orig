@@ -16,11 +16,15 @@ from aside.permissions import (
     check_microphone,
     request_privacy_access,
 )
-from aside.ui.theme import ACCENT, ACCENT_HOVER, BG, BG2, DANGER, FG, FG2, FG_INVERSE, FONT, SEP, SUCCESS
+from aside.ui.theme import ACCENT, BG, BG2, FG, FG2, FONT, SEP
 
 logger = logging.getLogger(__name__)
 
 _POLL_MS = 1500
+
+_GREEN = "#30D158"
+_RED = "#FF453A"
+_GREY = "#8E8E93"
 
 _ROWS = [
     {
@@ -114,8 +118,8 @@ class OnboardingWindow(ctk.CTkToplevel):
             text="Get Started  →",
             font=(FONT, 14, "bold"),
             fg_color=ACCENT,
-            text_color=FG_INVERSE,
-            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            hover_color="#00B8CC",
             corner_radius=10,
             height=42,
             width=200,
@@ -131,7 +135,7 @@ class OnboardingWindow(ctk.CTkToplevel):
         left = ctk.CTkFrame(frame, fg_color="transparent")
         left.pack(side="left", fill="x", expand=True)
 
-        dot = ctk.CTkLabel(left, text="●", font=(FONT, 14), text_color=FG2)
+        dot = ctk.CTkLabel(left, text="●", font=(FONT, 14), text_color=_GREY)
         dot.pack(side="left", padx=(0, 8))
 
         text_frame = ctk.CTkFrame(left, fg_color="transparent")
@@ -174,25 +178,25 @@ class OnboardingWindow(ctk.CTkToplevel):
             status = _CHECKERS[row["key"]]()
             widgets = self._row_widgets[row["key"]]
             if status == PermissionStatus.GRANTED:
-                widgets["dot"].configure(text_color=SUCCESS)
-                widgets["btn"].configure(state="disabled", text_color=FG2)
+                widgets["dot"].configure(text_color=_GREEN)
+                widgets["btn"].configure(state="disabled", text_color=_GREY)
             else:
                 all_granted = False
-                widgets["dot"].configure(text_color=DANGER)
+                widgets["dot"].configure(text_color=_RED)
                 widgets["btn"].configure(state="normal", text_color=FG)
 
         self._all_granted = all_granted
         if all_granted:
             self._continue_btn.configure(
                 state="normal",
-                fg_color=SUCCESS,
-                text_color=FG_INVERSE,
+                fg_color=_GREEN,
+                text_color="#000000",
             )
         else:
             self._continue_btn.configure(
                 state="disabled",
                 fg_color=ACCENT,
-                text_color=FG_INVERSE,
+                text_color="#000000",
             )
 
         self._poll_job = self.after(_POLL_MS, self._poll)

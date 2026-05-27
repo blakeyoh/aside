@@ -1,0 +1,10 @@
+--- src/aside/ui/app.py
++++ src/aside/ui/app.py
+@@ -33,7 +33,7 @@
+ from aside.engine.transcriber import Transcriber
+ from aside.helper import launch_helper_subprocess
+ from aside.ui.menubar import MenubarApp, hotkey_display
+-from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP
++from aside.ui.theme import BG, FG, FG2, FONT, ACCENT, POLL_MS, STATUS_MAP, SUCCESS, DANGER
+ from aside.ui.onboarding import OnboardingWindow
+ from aside.ui.settings import SettingsWindow

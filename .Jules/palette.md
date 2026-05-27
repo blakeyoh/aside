@@ -9,3 +9,7 @@
 ## 2026-05-03 - Focus management on continuous input forms
 **Learning:** Seamless keyboard navigation for paired inputs (like key-value dictionary entries) and automatic re-focusing on inputs after submission makes repetitive data entry significantly smoother. Before this change, adding a dictionary rule required clicking the input again after each entry.
 **Action:** When creating text input fields that users will likely use repeatedly in succession, always manage focus explicitly. For paired entries, hitting 'Return' in the first field should focus the second field; hitting 'Return' in the second field should submit the action and focus the first field again.
+
+## 2026-05-04 - Centralizing UI Semantic Tokens
+**Learning:** Hardcoded color hex codes scattered across application components make it difficult to maintain and enforce the app's visual identity consistently. Mismatched usage for generic "success" and "danger" states caused minor visual hierarchy inconsistencies.
+**Action:** Introduce and use semantic color tokens like `SUCCESS`, `DANGER`, `WARNING`, `INFO`, `ACCENT_HOVER`, and `FG_INVERSE` inside the centralized UI theme module. Replacing inline hex codes with these tokens guarantees systematic and consistent style propagation.

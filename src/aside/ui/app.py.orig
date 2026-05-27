@@ -407,7 +407,7 @@ class App(ctk.CTk):
         if hasattr(self, "_menubar"):
             self._menubar.set_state(state)
 
-    def _show_status_message(self, message: str, *, color: str = DANGER):
+    def _show_status_message(self, message: str, *, color: str = "#FF453A"):
         """Show a temporary status message without changing the app state."""
         self._status_dot.configure(text_color=color)
         self._status_label.configure(text=message)
@@ -442,7 +442,7 @@ class App(ctk.CTk):
         if new_model != self._transcriber.model_size:
             self._transcriber.reload_model(new_model)
 
-        self._show_status_message("Settings applied", color=SUCCESS)
+        self._show_status_message("Settings applied", color="#30D158")
 
     def _on_capture_hotkey(self):
         """Enter hotkey capture mode."""
@@ -538,7 +538,7 @@ class App(ctk.CTk):
         entry.delete(0, "end")
         self._check_hw_add_state()
         self._refresh_dict_count()
-        self._show_status_message("Hotword added", color=SUCCESS)
+        self._show_status_message("Hotword added", color="#30D158")
         entry.focus()
 
     def _on_add_replacement(self):
@@ -554,7 +554,7 @@ class App(ctk.CTk):
         self._widgets["rep_right"].delete(0, "end")
         self._check_rep_add_state()
         self._refresh_dict_count()
-        self._show_status_message("Replacement added", color=SUCCESS)
+        self._show_status_message("Replacement added", color="#30D158")
         self._widgets["rep_wrong"].focus()
 
     def _on_reload_dictionary(self):
