@@ -1,4 +1,5 @@
 """Parse ~/.aside/dictionary.txt into hotwords and replacement rules."""
+
 import logging
 import re
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ ARROW = "→"
 @dataclass
 class DictionaryData:
     """Parsed dictionary contents."""
+
     hotwords: list[str] = field(default_factory=list)
     replacements: dict[str, str] = field(default_factory=dict)
     compiled_replacements: list[tuple[re.Pattern, str]] = field(default_factory=list)
@@ -66,7 +68,9 @@ def parse_dictionary(path: Path) -> DictionaryData:
             key = parts[0].strip()
             value = parts[1].strip()
             if not key or not value:
-                logger.warning("Malformed replacement at line %d: %r", line_num, raw_line)
+                logger.warning(
+                    "Malformed replacement at line %d: %r", line_num, raw_line
+                )
                 continue
             if key in seen:
                 continue

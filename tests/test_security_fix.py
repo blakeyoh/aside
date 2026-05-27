@@ -33,7 +33,9 @@ def test_open_dictionary_file_uses_os_file_association(monkeypatch):
             calls.append(("shared_workspace", None))
             return FakeWorkspace()
 
-    monkeypatch.setattr(settings, "ensure_dictionary_file", lambda: calls.append(("ensure", None)))
+    monkeypatch.setattr(
+        settings, "ensure_dictionary_file", lambda: calls.append(("ensure", None))
+    )
     monkeypatch.setattr(settings, "NSURL", FakeNSURL)
     monkeypatch.setattr(settings, "NSWorkspace", FakeNSWorkspace)
 

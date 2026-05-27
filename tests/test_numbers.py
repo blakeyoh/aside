@@ -1,4 +1,3 @@
-import pytest
 from aside.commands.numbers import NumberMode
 
 
@@ -26,7 +25,10 @@ class TestNumberMode:
     def test_mixed_text_and_numbers(self):
         nm = NumberMode()
         nm.activate()
-        assert nm.process("call me at five five five one two three four") == "call me at 5551234"
+        assert (
+            nm.process("call me at five five five one two three four")
+            == "call me at 5551234"
+        )
 
     def test_teen_numbers(self):
         nm = NumberMode()

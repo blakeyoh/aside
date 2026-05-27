@@ -58,13 +58,17 @@ def test_transcriber_preserves_whisper_punctuation_as_secondary(monkeypatch, tmp
         lambda text: injected.append(text) or len(text),
     )
 
-    transcriber = _loaded_transcriber("hello, I am here period are you there?", tmp_path)
+    transcriber = _loaded_transcriber(
+        "hello, I am here period are you there?", tmp_path
+    )
     transcriber.transcribe(audio=[1])
 
     assert injected == ["Hello, I am here. Are you there?"]
 
 
-def test_transcriber_executes_actions_without_punctuation_commands(monkeypatch, tmp_path):
+def test_transcriber_executes_actions_without_punctuation_commands(
+    monkeypatch, tmp_path
+):
     injected = []
     executed = []
     monkeypatch.setattr(
