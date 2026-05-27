@@ -1,6 +1,6 @@
 import json
 import pytest
-from aside.config import load_config, save_config, DEFAULT_CONFIG, CONFIG_DIR
+from aside.config import load_config, save_config
 
 
 @pytest.fixture
@@ -34,10 +34,14 @@ class TestLoadConfig:
 
     def test_loads_existing_config(self, tmp_aside_dir):
         tmp_aside_dir.mkdir(parents=True)
-        (tmp_aside_dir / "config.json").write_text(json.dumps({
-            "model_size": "small",
-            "language": "es",
-        }))
+        (tmp_aside_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "model_size": "small",
+                    "language": "es",
+                }
+            )
+        )
         cfg = load_config()
         assert cfg["model_size"] == "small"
         assert cfg["language"] == "es"
@@ -65,13 +69,20 @@ class TestMigration:
     def test_migrates_from_hushed_hippo(self, tmp_aside_dir, tmp_path, monkeypatch):
         old_dir = tmp_path / "Library" / "Application Support" / "HushedHippo"
         old_dir.mkdir(parents=True)
-        (old_dir / "config.json").write_text(json.dumps({
-            "model_size": "medium",
-            "hotkey": {"modifiers": ["cmd"], "trigger": "a"},
-        }))
-        monkeypatch.setattr("aside.config._MIGRATION_PATHS", [
-            old_dir / "config.json",
-        ])
+        (old_dir / "config.json").write_text(
+            json.dumps(
+                {
+                    "model_size": "medium",
+                    "hotkey": {"modifiers": ["cmd"], "trigger": "a"},
+                }
+            )
+        )
+        monkeypatch.setattr(
+            "aside.config._MIGRATION_PATHS",
+            [
+                old_dir / "config.json",
+            ],
+        )
         cfg = load_config()
         assert cfg["model_size"] == "medium"
         assert cfg["hotkey"] == {"modifiers": ["cmd"], "trigger": "a"}
