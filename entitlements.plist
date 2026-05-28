@@ -3,7 +3,17 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Required for ctranslate2 JIT compilation -->
+    <!-- Hardened-runtime exception: allow writable+executable (W+X) memory.
+         Required by the bundled native stack, NOT a convenience grant:
+           - ctranslate2 maps executable memory for its runtime kernels.
+           - cffi/ctypes-based deps (e.g. sounddevice / _sounddevice) allocate
+             executable trampoline pages via libffi closures.
+         Removing or narrowing this (e.g. to allow-jit, which only covers JIT
+         mach-exception handling, not libffi W+X trampolines) breaks audio
+         capture and transcription once the hardened runtime is enforced.
+         Keep this scoped to exactly this key; do NOT widen the entitlement set.
+         Note: currently inert until the release codesign step enables the
+         hardened runtime option (see the notarization block in release.yml). -->
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
     <true/>
 
