@@ -171,15 +171,33 @@ else
 fi
 
 # ── Download Whisper model ────────────────────────────────────────────────────
+# Pin the model to a specific Hugging Face commit SHA so a source install is
+# reproducible and integrity-checked, exactly like the release build (see
+# MODEL_REVISION in .github/workflows/release.yml — keep this in lockstep).
+# A bare WhisperModel('base') call tracks the repo's moving `main` ref with no
+# revision pin or checksum, so a compromised/retagged upstream would be pulled
+# silently. snapshot_download validates the fetched files against the immutable
+# commit. Downloading into <repo>/faster-whisper-base also lets `python -m aside`
+# load the model locally with no further network access
+# (resources.resource_path finds it in source mode).
+MODEL_REVISION="ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66"
+MODEL_DIR="$SCRIPT_DIR/faster-whisper-base"
 echo ""
-echo "Downloading Whisper 'base' model (~140 MB)…"
-python3 -c "
-from faster_whisper import WhisperModel
-print('  Downloading model weights…')
-WhisperModel('base', device='cpu', compute_type='int8')
-print('  Model ready.')
-"
-echo "✅  Whisper model downloaded"
+echo "Downloading Whisper 'base' model (~140 MB, pinned @ ${MODEL_REVISION:0:12})…"
+python3 - "$MODEL_REVISION" "$MODEL_DIR" <<'PY'
+import sys
+from huggingface_hub import snapshot_download
+
+revision, local_dir = sys.argv[1], sys.argv[2]
+print("  Downloading model weights…")
+snapshot_download(
+    repo_id="Systran/faster-whisper-base",
+    revision=revision,
+    local_dir=local_dir,
+)
+print("  Model ready.")
+PY
+echo "✅  Whisper model downloaded (pinned)"
 
 # ── Verify installation ───────────────────────────────────────────────────────
 echo ""

@@ -22,6 +22,9 @@ build/
 # Aside runtime
 .aside/
 
+# Whisper model fetched by setup.sh into the source-mode local model dir
+/faster-whisper-base/
+
 # Old Hushed Hippo files (reference only)
 /app.py
 /engine.py
