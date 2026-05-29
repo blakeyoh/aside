@@ -454,7 +454,7 @@ class AsideStdioHelper:
         )
 
     def _add_hotword(self, term: str) -> None:
-        term = term.strip()
+        term = term.replace("\r", " ").replace("\n", " ").strip()
         if not term:
             self.emit({"type": "error", "message": "hotword cannot be empty"})
             return
@@ -469,8 +469,8 @@ class AsideStdioHelper:
         self.emit_dictionary()
 
     def _add_replacement(self, wrong: str, right: str) -> None:
-        wrong = wrong.strip()
-        right = right.strip()
+        wrong = wrong.replace("\r", " ").replace("\n", " ").strip()
+        right = right.replace("\r", " ").replace("\n", " ").strip()
         if not wrong or not right:
             self.emit({"type": "error", "message": "replacement fields cannot be empty"})
             return

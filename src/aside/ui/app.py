@@ -529,7 +529,7 @@ class App(ctk.CTk):
     def _on_add_hotword(self):
         """Add a hotword to the dictionary file."""
         entry = self._widgets["hw_entry"]
-        term = entry.get().strip()
+        term = entry.get().replace("\r", " ").replace("\n", " ").strip()
         if not term:
             return
         ensure_dictionary_file()
@@ -543,8 +543,8 @@ class App(ctk.CTk):
 
     def _on_add_replacement(self):
         """Add a replacement rule to the dictionary file."""
-        wrong = self._widgets["rep_wrong"].get().strip()
-        right = self._widgets["rep_right"].get().strip()
+        wrong = self._widgets["rep_wrong"].get().replace("\r", " ").replace("\n", " ").strip()
+        right = self._widgets["rep_right"].get().replace("\r", " ").replace("\n", " ").strip()
         if not wrong or not right:
             return
         ensure_dictionary_file()
