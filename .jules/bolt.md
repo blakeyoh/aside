@@ -1,0 +1,3 @@
+## 2026-06-07 - Replace O(N^2) string concatenation overhead with O(1) backward lookup
+**Learning:** Checking boundary characters using `"".join(parts)[-1]` inside text processing loops (like appending dictation outputs or rendering parsed text) introduces a hidden O(N^2) time complexity because string concatenation scales linearly with the size of all previously accumulated text chunks.
+**Action:** Use a backwards iteration helper `_get_last_char(parts)` to find the rightmost non-empty character in a list of strings instead of joining the entire array. This operates in O(1) expected time (or O(k) for sparse trailing arrays) and scales independently of the total length of the generated output.
