@@ -1,7 +1,16 @@
+import sys
+import types
+from unittest.mock import MagicMock
+
+# Mock AppKit
+sys.modules['AppKit'] = MagicMock()
+sys.modules['AppKit.NSWorkspace'] = MagicMock()
+sys.modules['Foundation'] = MagicMock()
+sys.modules['Foundation.NSURL'] = MagicMock()
+
 from aside import permissions
 from aside.ui import settings
 from aside.config import DICTIONARY_FILE
-
 
 def test_open_privacy_pane_uses_webbrowser(monkeypatch):
     opened = []
@@ -13,6 +22,14 @@ def test_open_privacy_pane_uses_webbrowser(monkeypatch):
         "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
     ]
 
+def test_open_privacy_pane_invalid_pane(monkeypatch, caplog):
+    opened = []
+    monkeypatch.setattr(permissions.webbrowser, "open", opened.append)
+
+    permissions.open_privacy_pane("invalid_pane_name_123")
+
+    assert not opened
+    assert "Invalid privacy pane requested: invalid_pane_name_123" in caplog.text
 
 def test_open_dictionary_file_uses_os_file_association(monkeypatch):
     calls = []
