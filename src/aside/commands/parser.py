@@ -9,6 +9,7 @@ Two categories of commands:
 - Action commands (edit/mode): only trigger at sentence boundaries (start/end of
   text, or immediately after punctuation).
 """
+
 import re
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -61,19 +62,15 @@ _ACTION_PHRASES: list[tuple[str, Command]] = [
 # All phrases for exhaustive matching, dictation first (longest match wins)
 _ALL_PHRASES: list[tuple[str, Command, bool]] = [
     (phrase, cmd, True) for phrase, cmd in _DICTATION_PHRASES
-] + [
-    (phrase, cmd, False) for phrase, cmd in _ACTION_PHRASES
-]
+] + [(phrase, cmd, False) for phrase, cmd in _ACTION_PHRASES]
 
 _PHRASE_LOOKUP = {
-    phrase: (cmd, is_dictation)
-    for phrase, cmd, is_dictation in _ALL_PHRASES
+    phrase: (cmd, is_dictation) for phrase, cmd, is_dictation in _ALL_PHRASES
 }
 _PHRASE_PATTERN = re.compile(
     r"\b("
     + "|".join(
-        re.escape(phrase)
-        for phrase in sorted(_PHRASE_LOOKUP, key=len, reverse=True)
+        re.escape(phrase) for phrase in sorted(_PHRASE_LOOKUP, key=len, reverse=True)
     )
     + r")\b",
     re.IGNORECASE,
@@ -200,13 +197,21 @@ def parse_commands(text: str) -> tuple[list[Command], str]:
     return parsed.commands, parsed.cleaned_text
 
 
+def _get_last_char(parts: list[str]) -> str:
+    """Return the rightmost character from a list of strings in O(1) time."""
+    for part in reversed(parts):
+        if part:
+            return part[-1]
+    return ""
+
+
 def _append_text(parts: list[str], text: str) -> None:
     chunk = re.sub(r"\s+", " ", text).strip()
     if not chunk:
         return
     if parts:
-        current = "".join(parts)
-        if current and current[-1] not in (" ", "\n"):
+        last_char = _get_last_char(parts)
+        if last_char and last_char not in (" ", "\n"):
             parts.append(" ")
     parts.append(chunk)
 
@@ -242,7 +247,7 @@ def _append_dictation_output(parts: list[str], cmd: Command) -> None:
         parts.append(output)
         return
 
-    current = "".join(parts)
-    if current and current[-1] in _ARTIFACT_PUNCT:
+    last_char = _get_last_char(parts)
+    if last_char and last_char in _ARTIFACT_PUNCT:
         parts[-1] = parts[-1].rstrip(_ARTIFACT_PUNCT).rstrip()
     parts.append(output)
