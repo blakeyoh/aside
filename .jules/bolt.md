@@ -1,0 +1,3 @@
+## 2024-06-14 - Fix O(N^2) string concatenation overhead in `_append_text` and text parsing
+**Learning:** Checking the boundary characters dynamically using `"".join(parts)[-1]` inside text processing loops (such as parsing voice commands) creates an $O(N^2)$ algorithmic bottleneck, since we effectively concatenate strings repeatedly on each operation.
+**Action:** Always avoid `"".join(parts)` for simply looking at the last character. Use a helper function that iterates backwards `reversed(parts)` to find the rightmost character from a list of strings in $O(1)$ time.
