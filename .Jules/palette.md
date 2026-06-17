@@ -9,3 +9,7 @@
 ## 2026-05-03 - Focus management on continuous input forms
 **Learning:** Seamless keyboard navigation for paired inputs (like key-value dictionary entries) and automatic re-focusing on inputs after submission makes repetitive data entry significantly smoother. Before this change, adding a dictionary rule required clicking the input again after each entry.
 **Action:** When creating text input fields that users will likely use repeatedly in succession, always manage focus explicitly. For paired entries, hitting 'Return' in the first field should focus the second field; hitting 'Return' in the second field should submit the action and focus the first field again.
+
+## 2026-06-17 - Consistent text color on hover for secondary UI elements
+**Learning:** In customtkinter, CTkButton text color remains static on hover. Applying bright accent colors to hover states of secondary buttons (or dropdowns) on dark backgrounds (BG2) makes the light text unreadable.
+**Action:** When creating secondary or subtle UI elements in customtkinter that use dark background colors, use a dark shade like `SEP` (instead of `ACCENT` or bright colors) for `hover_color` and `dropdown_hover_color` to maintain text contrast and readability.
