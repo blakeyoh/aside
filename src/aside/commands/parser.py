@@ -200,13 +200,23 @@ def parse_commands(text: str) -> tuple[list[Command], str]:
     return parsed.commands, parsed.cleaned_text
 
 
+
+
+def _get_last_char(parts: list[str]) -> str | None:
+    """Return the last character of the rightmost non-empty string in parts."""
+    for i in range(len(parts) - 1, -1, -1):
+        if parts[i]:
+            return parts[i][-1]
+    return None
+
+
 def _append_text(parts: list[str], text: str) -> None:
     chunk = re.sub(r"\s+", " ", text).strip()
     if not chunk:
         return
     if parts:
-        current = "".join(parts)
-        if current and current[-1] not in (" ", "\n"):
+        last_char = _get_last_char(parts)
+        if last_char is not None and last_char not in (" ", "\n"):
             parts.append(" ")
     parts.append(chunk)
 
@@ -242,7 +252,7 @@ def _append_dictation_output(parts: list[str], cmd: Command) -> None:
         parts.append(output)
         return
 
-    current = "".join(parts)
-    if current and current[-1] in _ARTIFACT_PUNCT:
+    last_char = _get_last_char(parts)
+    if last_char is not None and last_char in _ARTIFACT_PUNCT:
         parts[-1] = parts[-1].rstrip(_ARTIFACT_PUNCT).rstrip()
     parts.append(output)
