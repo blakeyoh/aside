@@ -119,13 +119,37 @@ enum SidebarSection: String, CaseIterable {
     }
 }
 
+@MainActor
+final class AsideApplicationDelegate: NSObject, NSApplicationDelegate {
+    weak var supervisor: HelperSupervisor?
+    private var terminationPending = false
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let supervisor, supervisor.isRunning else {
+            return .terminateNow
+        }
+        guard !terminationPending else {
+            return .terminateLater
+        }
+
+        terminationPending = true
+        supervisor.shutdownHelper { [weak self, weak sender] in
+            self?.terminationPending = false
+            sender?.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+}
+
 @main
 struct AsideShellApp: App {
+    @NSApplicationDelegateAdaptor(AsideApplicationDelegate.self) private var appDelegate
     @StateObject private var supervisor: HelperSupervisor
 
     init() {
         let helperSupervisor = HelperSupervisor()
         _supervisor = StateObject(wrappedValue: helperSupervisor)
+        appDelegate.supervisor = helperSupervisor
 
         if swiftProtocolSmokeMode() {
             DispatchQueue.main.async {
@@ -144,9 +168,6 @@ struct AsideShellApp: App {
                     NSApplication.shared.activate(ignoringOtherApps: true)
                     supervisor.startHelper()
                 }
-                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
-                    supervisor.shutdownHelper()
-                }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     supervisor.refreshPermissions()
                 }
@@ -155,9 +176,7 @@ struct AsideShellApp: App {
         .commands {
             CommandGroup(replacing: .appTermination) {
                 Button("Quit Aside") {
-                    supervisor.shutdownHelper {
-                        NSApplication.shared.terminate(nil)
-                    }
+                    NSApplication.shared.terminate(nil)
                 }
                 .keyboardShortcut("q")
             }

@@ -241,6 +241,45 @@ final class HelperSupervisorTests: XCTestCase {
         XCTAssertFalse(supervisor.isRunning)
     }
 
+    func testShutdownCompletionWaitsForConfirmedExit() async {
+        let (supervisor, _, processes) = makeSupervisor()
+        supervisor.startHelper()
+        let process = processes()[0]
+        await completeHandshake(process)
+        var completionCalled = false
+
+        supervisor.shutdownHelper {
+            completionCalled = true
+        }
+
+        XCTAssertFalse(completionCalled)
+        process.exit(status: 0)
+        await Task.yield()
+        XCTAssertTrue(completionCalled)
+    }
+
+    func testShutdownDuringRecordingClearsCaptureAfterExit() async {
+        let (supervisor, _, processes) = makeSupervisor()
+        supervisor.startHelper()
+        let process = processes()[0]
+        await completeHandshake(process)
+        process.emitStdout(
+            "{\"type\":\"status\",\"state\":\"recording\"," +
+                "\"modelReady\":true,\"permissionsReady\":true," +
+                "\"captureState\":\"recording\"}\n"
+        )
+        await Task.yield()
+        XCTAssertEqual(supervisor.captureState, .recording)
+
+        supervisor.shutdownHelper()
+        XCTAssertEqual(supervisor.captureState, .recording)
+        process.exit(status: 0)
+        await Task.yield()
+
+        XCTAssertEqual(supervisor.captureState, .idle)
+        XCTAssertEqual(supervisor.state, .stopped)
+    }
+
     func testUnexpectedExitIsActionable() async {
         let (supervisor, _, processes) = makeSupervisor()
         supervisor.startHelper()
