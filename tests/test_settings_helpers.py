@@ -73,7 +73,11 @@ def test_add_hotword_sanitizes_input(monkeypatch, tmp_path):
         def focus(self):
             pass
 
-    app._widgets = {"hw_entry": FakeEntry("bad\nword\r")}
+    app._widgets = {
+        "hw_entry": FakeEntry(
+            "bad\nword\rterm\vnext\fmore\x1cfoo\x1dbar\x1ebaz\x85qux\u2028quux\u2029end"
+        )
+    }
 
     # Mock methods called after writing
     app._check_hw_add_state = lambda: None
@@ -82,7 +86,9 @@ def test_add_hotword_sanitizes_input(monkeypatch, tmp_path):
 
     app._on_add_hotword()
 
-    assert dict_file.read_text(encoding="utf-8") == "\nbad word"
+    assert dict_file.read_text(encoding="utf-8") == (
+        "\nbad word term next more foo bar baz qux quux end"
+    )
 
 
 def test_add_replacement_sanitizes_input(monkeypatch, tmp_path):
@@ -119,8 +125,8 @@ def test_add_replacement_sanitizes_input(monkeypatch, tmp_path):
             pass
 
     app._widgets = {
-        "rep_wrong": FakeEntry("bad\nwrong\r"),
-        "rep_right": FakeEntry("good\nright\r"),
+        "rep_wrong": FakeEntry("bad\u2028wrong\x85term"),
+        "rep_right": FakeEntry("good\u2029right\x1eterm"),
     }
 
     # Mock methods called after writing
@@ -130,4 +136,6 @@ def test_add_replacement_sanitizes_input(monkeypatch, tmp_path):
 
     app._on_add_replacement()
 
-    assert dict_file.read_text(encoding="utf-8") == "\nbad wrong → good right"
+    assert dict_file.read_text(encoding="utf-8") == (
+        "\nbad wrong term → good right term"
+    )

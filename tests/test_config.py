@@ -1,4 +1,5 @@
 import json
+import stat
 import pytest
 from aside.config import (
     load_config,
@@ -69,6 +70,8 @@ class TestSaveConfig:
         saved = json.loads((tmp_aside_dir / "config.json").read_text())
         assert saved["model_size"] == "large-v3"
         assert saved["language"] == "ja"
+        assert stat.S_IMODE(tmp_aside_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE((tmp_aside_dir / "config.json").stat().st_mode) == 0o600
 
     def test_returns_false_on_write_error(self, tmp_aside_dir, monkeypatch):
         def boom(*args, **kwargs):
@@ -100,6 +103,8 @@ class TestEnsureDictionaryFile:
         ensure_dictionary_file()
 
         assert dict_file.read_text() == DICTIONARY_TEMPLATE
+        assert stat.S_IMODE(tmp_aside_dir.stat().st_mode) == 0o700
+        assert stat.S_IMODE(dict_file.stat().st_mode) == 0o600
 
     def test_does_not_overwrite_existing(self, tmp_aside_dir, monkeypatch):
         tmp_aside_dir.mkdir(parents=True)

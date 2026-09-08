@@ -60,12 +60,13 @@ echo "==> Verifying SwiftUI bundle: $APP"
 [[ "$(plist_value "$APP/Contents/Info.plist" CFBundleExecutable)" == "Aside" ]] || fail "CFBundleExecutable is not Aside"
 [[ "$(plist_value "$APP/Contents/Info.plist" CFBundleIdentifier)" == "com.blakeyoh.aside" ]] || fail "unexpected CFBundleIdentifier"
 [[ "$(plist_value "$APP/Contents/Info.plist" CFBundleShortVersionString)" == "$EXPECTED_VERSION" ]] || fail "version mismatch"
+[[ "$(plist_value "$APP/Contents/Info.plist" LSMinimumSystemVersion)" == "13.0" ]] || fail "SwiftUI app must require macOS 13.0"
 [[ "$(plist_value "$APP/Contents/Info.plist" LSUIElement)" == "false" ]] || fail "SwiftUI app must be a regular visible app"
 
 if command -v lipo >/dev/null 2>&1; then
   ARCHS="$(lipo -archs "$APP/Contents/MacOS/Aside")"
   echo "SwiftUI executable archs: $ARCHS"
-  [[ " $ARCHS " == *" arm64 "* ]] || fail "SwiftUI executable is not arm64"
+  [[ "$ARCHS" == "arm64" ]] || fail "SwiftUI executable must be arm64-only"
 fi
 
 [[ -d "$HELPER_APP" ]] || fail "embedded AsideHelper.app missing"

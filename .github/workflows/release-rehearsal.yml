@@ -1,13 +1,11 @@
-name: Release rehearsal
+name: Legacy py2app maintenance smoke
 
-# Manual dry-run of the release pipeline. Builds the same release-mode
-# Aside.app + DMG that release.yml would, but stops short of creating a
-# GitHub Release. Surfaces failures (dylib closure, codesign, DMG packaging,
-# bundle launch) BEFORE a tag is pushed — every fix here saves a tag.
+# Manual compatibility check for the retained customtkinter/py2app app.
+# This does not build the artifact published by release.yml and is not a
+# native release-readiness gate. The canonical rehearsal is
+# release-rehearsal-swift.yml.
 #
-# Trigger from the Actions tab → "Release rehearsal" → "Run workflow".
-# Inspect the uploaded DMG artifact, drag-install on a Mac, and walk
-# through docs/smoke-test-plan.md before tagging.
+# Trigger from the Actions tab only when validating legacy source support.
 
 on:
   workflow_dispatch:
@@ -71,9 +69,9 @@ jobs:
           echo "model.bin size: $SIZE bytes"
           test "$SIZE" -gt 100000000
 
-      - name: Codesign (ad-hoc)
-        # Identical to release.yml. Must run before "Verify codesign" below
-        # so the verification reflects what users will receive.
+      - name: Codesign legacy compatibility artifact (ad-hoc)
+        # This signature validates the legacy bundle structure only. It does
+        # not match the Developer ID requirement for a native public release.
         run: |
           codesign --deep --force --sign - \
             --entitlements entitlements.plist dist/Aside.app
@@ -109,11 +107,8 @@ jobs:
           test -f "$MOUNT/Aside.app/Contents/Info.plist"
           hdiutil detach "$MOUNT"
 
-      - name: Confirm DMG name matches src/aside __version__
-        # Same alignment check release.yml runs against the git tag, but here
-        # we compare to the file produced by package_dmg.sh (which derives its
-        # name from __version__). A mismatch means the upload glob in
-        # release.yml would silently match nothing.
+      - name: Confirm legacy DMG name matches src/aside __version__
+        # This protects the compatibility artifact's own naming contract.
         run: |
           set -euo pipefail
           PYVER=$(python -c "import sys; sys.path.insert(0,'src'); from aside import __version__; print(__version__)")

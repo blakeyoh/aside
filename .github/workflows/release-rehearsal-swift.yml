@@ -1,9 +1,9 @@
-name: Release rehearsal SwiftUI
+name: Native release rehearsal
 
 # Manual dry-run for the native SwiftUI distribution path.
-# This is intentionally separate from release-rehearsal.yml, which validates
-# the legacy py2app/customtkinter app. This workflow validates that the app
-# users install is a Swift executable with an embedded py2app Python helper.
+# This is the rehearsal for the only publishable release path. The separate
+# release-rehearsal.yml workflow is legacy py2app compatibility evidence and
+# must not be used to approve a release.
 
 on:
   workflow_dispatch:

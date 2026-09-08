@@ -203,11 +203,20 @@ def test_helper_dictionary_sanitizes_input(monkeypatch, tmp_path):
     stdout = io.StringIO()
     app = _make_helper(stdout)
 
-    app.handle_command({"command": "addHotword", "term": "bad\nword\r"})
     app.handle_command(
-        {"command": "addReplacement", "wrong": "bad\nwrong\r", "right": "good\nright\r"}
+        {
+            "command": "addHotword",
+            "term": "bad\nword\rterm\vnext\fmore\x1cfoo\x1dbar\x1ebaz\x85qux\u2028quux\u2029end",
+        }
+    )
+    app.handle_command(
+        {
+            "command": "addReplacement",
+            "wrong": "bad\u2028wrong\x85term",
+            "right": "good\u2029right\x1eterm",
+        }
     )
 
     content = dictionary_path.read_text(encoding="utf-8")
-    assert "\nbad word" in content
-    assert "\nbad wrong → good right" in content
+    assert "\nbad word term next more foo bar baz qux quux end" in content
+    assert "\nbad wrong term → good right term" in content

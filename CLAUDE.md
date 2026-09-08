@@ -13,30 +13,39 @@ Open-source privacy-first voice dictation for macOS. Push-to-talk and toggle hot
 | Audio capture | `sounddevice` → numpy float32 |
 | Keyboard monitor | Quartz `CGEventTapCreate` (active tap, option=`0`) |
 | Text injection | Quartz `CGEventCreateKeyboardEvent` |
-| UI | `customtkinter` + `pyobjc` (AppKit, menu bar) |
-| Header icon | `pillow` (CTkImage requires PIL) |
+| Release UI | SwiftUI shell in `native/AsideShell` |
+| Engine bridge | Newline-delimited JSON over stdio via `aside.helper` |
+| Legacy UI | `customtkinter` + `pyobjc`, retained for source compatibility |
 | Python | Homebrew Python 3.13 (system Python 3.9 is NOT supported) |
-| Packaging | `pyproject.toml` + `setuptools.build_meta` |
+| Packaging | Native Swift executable with an embedded py2app helper and base model |
 
 ## Setup & Launch
 
 ```bash
 ./setup.sh                          # one-time: creates .venv, installs deps, downloads base model
-.venv/bin/python3 -m aside          # launch via Terminal
 source .venv/bin/activate
-scripts/build_app.sh dev            # optional local dist/Aside.app for app-mode testing
+scripts/run_swiftui_spike.sh         # launch the native shell from source
+scripts/smoke_swiftui_launch.sh      # bounded shell/helper protocol smoke
+.venv/bin/python3 -m aside           # legacy source UI compatibility path
 ```
 
-`setup.sh` auto-installs Homebrew Python 3.13 if missing and installs the matching `python-tk@3.13` formula. Release DMGs are self-contained py2app bundles; developer app bundles are built into `dist/Aside.app`.
+`setup.sh` auto-installs Homebrew Python 3.13 if missing and installs the matching `python-tk@3.13` formula. The release artifact is `dist-swiftui/Aside.app`, built by `scripts/build_swiftui_app.sh release` and packaged by `scripts/package_swiftui_dmg.sh`. The standalone `dist/Aside.app` py2app bundle is legacy compatibility evidence only.
 
 Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migrated from HushedHippo and WhisperDictation paths on first launch.
 
 ## Package Structure
 
 ```
+native/AsideShell/
+├── Package.swift             # macOS 13+ Swift executable
+└── Sources/AsideShell/
+    ├── AsideShellApp.swift   # windows, menu bar, settings, onboarding, Practice
+    └── HelperSupervisor.swift # helper process and framed stdio protocol
+
 src/aside/
 ├── __init__.py              # __version__ = "1.3.0"
 ├── __main__.py              # entry point
+├── helper.py                # engine owner for the SwiftUI shell
 ├── config.py                # load/save/migrate config, DEFAULT_CONFIG
 ├── permissions.py           # mic/accessibility/input-monitoring checks + Settings links
 ├── resources.py             # source vs py2app resource path lookup
@@ -79,23 +88,24 @@ src/aside/
 8. Context Update       → dictionary/context.py    [FIFO append]
 ```
 
-## Thread Model
+## Process And Thread Model
 
 ```
-Main thread (Tk):
-  after_idle → engine startup (model load on background thread)
-  after(10ms) → poll HotkeyManager (drain event queue)
-  Settings UI, state machine, Apply handler
+Main app process:
+  SwiftUI owns windows, menu bar, state presentation, and helper supervision
+  HelperSupervisor launches the embedded/source Python helper over stdio
+
+Python helper process:
+  Main loop drains commands and hotkey events
+  model-load / transcribe threads own Whisper and blocking audio teardown
 
 Background thread "event-tap":
   CFRunLoopRun() → CGEventTap callback → queue.put_nowait(raw ints)
   NEVER touches Python objects beyond the queue put
   Reads hotkey attrs without lock (GIL-atomic individual reads)
 
-Background thread "model-load" / "transcribe":
-  Load Whisper model, run transcription
-  Access model under threading.Lock
-  stream.stop() runs HERE (never main thread — blocks)
+Legacy source UI:
+  customtkinter remains supported for regression/source compatibility only
 ```
 
 ## Voice Commands (12 total)
@@ -128,7 +138,9 @@ File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined).
 ## Testing
 
 ```bash
-.venv/bin/python3 -m pytest tests/ -v    # 149 tests (1 skipped off macOS)
+.venv/bin/python3 -m pytest tests/ -v
+swift build --package-path native/AsideShell
+scripts/smoke_swiftui_launch.sh
 ```
 
 `tests/conftest.py` stubs the macOS-only GUI/audio libraries when they're
@@ -136,9 +148,13 @@ absent, so the runnable subset works on Linux too (for cloud agents). Tests
 needing the real native stack (e.g. the helper subprocess) skip off macOS and
 are covered by the macOS CI workflow.
 
-Manual smoke test plan: `docs/smoke-test-plan.md` (Boeing FAI-style, 6 phases, go/no-go gates)
+Protocol smoke uses fake audio/hotkeys/transcription and does not prove working dictation. Native release approval additionally requires the installed-artifact and manual gates in `docs/swiftui-release-audit-2026-09-08.md`.
 
 ## Critical Gotchas
+
+### Release authority
+
+`main` is the canonical integration base. The native SwiftUI DMG is the only publish path. Never infer native release readiness from the legacy py2app workflow, a protocol-smoke `ready` event, or historical technical-spike evidence. Read `docs/swiftui-release-audit-2026-09-08.md` before release work and stay within the assigned R-number.
 
 ### Push-to-talk must stop on modifier release
 Push-to-talk hotkeys cannot rely on `kCGEventKeyUp` alone. On macOS, releasing `Ctrl` or `Alt` before the trigger key often strips the modifier flag from the later key-up event. Preserve `kCGEventFlagsChanged` handling so recording stops when the modifier is released, otherwise push-to-talk can remain stuck recording until the shortcut is pressed again.
@@ -190,4 +206,4 @@ These were discovered during implementation and aren't obvious from the code alo
 
 ## Deferred Work
 
-See `docs/packaging-plan.md` and `docs/packaging-status.md` for the active packaging effort and per-issue handoff context.
+Follow `docs/swiftui-release-audit-2026-09-08.md` and `TODO.md`. The older `docs/packaging-plan.md` and `docs/packaging-status.md` describe the legacy py2app effort and are historical only.
