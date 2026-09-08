@@ -25,11 +25,19 @@ never sufficient to call a native candidate release-ready.
 
 ## R2: installed identity and distribution
 
+- [x] Place the embedded helper in the standard `Contents/Helpers` nested-code
+  location and keep helper lookup/build/verification aligned.
+- [x] Split main/helper entitlements and add inside-out Developer ID signing,
+  hardened runtime, secure timestamps, and exact entitlement verification.
+- [x] Make release and rehearsal workflows require a real signing certificate,
+  notarize a signed DMG, staple and validate it, run Gatekeeper assessment, and
+  smoke the copy extracted from that DMG.
+- [x] Emit a commit/toolchain/model/artifact manifest plus final SHA-256.
 - [ ] Build one candidate from the consolidated baseline and record its commit,
   artifact SHA-256, macOS version, architecture, Python/Swift toolchains, and
   model revision.
-- [ ] Configure Developer ID signing, hardened runtime, nested signing order,
-  and per-executable entitlements.
+- [ ] Prove the configured Developer ID identity, hardened runtime, nested
+  signatures, and per-executable entitlements on the candidate artifact.
 - [ ] Submit a supported archive or DMG for notarization, staple it, and verify
   Gatekeeper acceptance without bypassing quarantine.
 - [ ] Install the DMG copy into `/Applications` on another Mac and verify app,

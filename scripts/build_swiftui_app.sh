@@ -7,7 +7,7 @@ set -euo pipefail
 #   dist-swiftui/Aside.app
 #
 # The app bundle uses the SwiftUI shell as the main executable and embeds a
-# py2app-built Python helper at Contents/Resources/AsideHelper.app.
+# py2app-built Python helper at Contents/Helpers/AsideHelper.app.
 
 MODE="${1:-release}"
 
@@ -50,7 +50,7 @@ if [[ ! "$PYTHON_EXE" =~ \.venv/bin/python$ ]]; then
   exit 1
 fi
 
-for required_file in Info.plist assets/NEW-AppIcon.icns entitlements.plist assets/NEW-aside-logo.png; do
+for required_file in Info.plist assets/NEW-AppIcon.icns entitlements-main.plist entitlements-helper.plist assets/NEW-aside-logo.png; do
   if [[ ! -f "$required_file" ]]; then
     echo "ERROR: required packaging input is missing: $required_file"
     exit 1
@@ -132,12 +132,12 @@ test -x "$SWIFT_EXE"
 test -x "$HELPER_APP/Contents/MacOS/AsideHelper"
 
 echo "==> Assembling $APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Helpers"
 cp Info.plist "$APP/Contents/Info.plist"
 cp "$SWIFT_EXE" "$APP/Contents/MacOS/Aside"
 cp assets/NEW-AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 cp assets/NEW-aside-logo.png "$APP/Contents/Resources/NEW-aside-logo.png"
-cp -R "$HELPER_APP" "$APP/Contents/Resources/AsideHelper.app"
+cp -R "$HELPER_APP" "$APP/Contents/Helpers/AsideHelper.app"
 printf "APPL????" > "$APP/Contents/PkgInfo"
 chmod +x "$APP/Contents/MacOS/Aside"
 

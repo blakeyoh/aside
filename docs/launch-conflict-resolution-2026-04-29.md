@@ -31,7 +31,7 @@ The launch branch contains the right behavioral intent, but its conflict-resolut
    The launch branch removed the `try/except` wrapper around AppKit imports. This branch keeps the guard because the test suite and non-GUI import paths should not crash. Install/build correctness is enforced in `setup.sh`, `scripts/build_app.sh`, and CI import preflights instead.
 
 4. **Menu-bar icon bundling is now gated.**
-   Build smoke verifies `dist/Aside.app/Contents/Resources/aside-logo.png`, and `scripts/build_app.sh` fails early if `aside-logo.png`, `AppIcon.icns`, `Info.plist`, or `entitlements.plist` are missing.
+   Build smoke verifies `dist/Aside.app/Contents/Resources/aside-logo.png`, and `scripts/build_app.sh` fails early if `aside-logo.png`, `AppIcon.icns`, `Info.plist`, or `entitlements-helper.plist` are missing.
 
 ## Conflicts Avoided
 

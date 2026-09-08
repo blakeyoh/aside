@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Package dist-swiftui/Aside.app into a distributable SwiftUI DMG.
+# Package a Developer ID-signed native app into a signed SwiftUI DMG.
+
+IDENTITY="${1:-}"
+
+if [[ -z "$IDENTITY" || "$IDENTITY" == "-" ]]; then
+  echo "Usage: scripts/package_swiftui_dmg.sh \"Developer ID Application: Name (TEAMID)\"" >&2
+  echo "A real Developer ID identity is required; ad-hoc release DMGs are not allowed." >&2
+  exit 1
+fi
 
 if [[ ! -d "dist-swiftui/Aside.app" ]]; then
   echo "dist-swiftui/Aside.app not found — run scripts/build_swiftui_app.sh release first."
@@ -19,15 +27,8 @@ DMG_PATH="dist-swiftui/Aside-SwiftUI-${VERSION}.dmg"
 
 rm -f "$DMG_PATH"
 
-if codesign -dv dist-swiftui/Aside.app 2>&1 | grep -q "^Authority="; then
-  echo "==> Preserving existing Developer ID signature"
-else
-  echo "==> Ad-hoc codesigning dist-swiftui/Aside.app"
-  codesign --deep --force --sign - --entitlements entitlements.plist dist-swiftui/Aside.app
-fi
-
-echo "==> Verifying codesign"
-scripts/verify_swiftui_bundle.sh --codesign dist-swiftui/Aside.app
+echo "==> Verifying Developer ID-signed app"
+scripts/verify_swiftui_bundle.sh --distribution dist-swiftui/Aside.app
 
 STAGING=$(mktemp -d)
 trap 'rm -rf "$STAGING"' EXIT
@@ -44,5 +45,9 @@ create-dmg \
   --app-drop-link 480 185 \
   "${DMG_PATH}" \
   "${STAGING}"
+
+echo "==> Developer ID-signing ${DMG_PATH}"
+codesign --force --timestamp --sign "$IDENTITY" "$DMG_PATH"
+codesign --verify --verbose=2 "$DMG_PATH"
 
 echo "==> Done: ${DMG_PATH}"

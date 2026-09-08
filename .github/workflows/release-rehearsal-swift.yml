@@ -1,9 +1,9 @@
 name: Native release rehearsal
 
-# Manual dry-run for the native SwiftUI distribution path.
-# This is the rehearsal for the only publishable release path. The separate
-# release-rehearsal.yml workflow is legacy py2app compatibility evidence and
-# must not be used to approve a release.
+# This manual workflow exercises the same Developer ID, hardened-runtime,
+# notarization, stapling, staged-install, and smoke path used by release.yml.
+# Passing it is required evidence, but final permission identity and real
+# dictation still need a separate Mac.
 
 on:
   workflow_dispatch:
@@ -11,9 +11,29 @@ on:
 jobs:
   rehearsal-swiftui:
     runs-on: macos-14
+    env:
+      MODEL_REVISION: ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
+      NOTARY_PROFILE: aside-notary-ci
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require distribution credentials
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "${MACOS_CERTIFICATE:-}"
+          test -n "${MACOS_CERTIFICATE_PASSWORD:-}"
+          test -n "${KEYCHAIN_PASSWORD:-}"
+          test -n "${APPLE_ID:-}"
+          test -n "${APPLE_TEAM_ID:-}"
+          test -n "${NOTARIZE_PASSWORD:-}"
 
       - name: Install Homebrew dependencies
         run: brew install python@3.13 python-tk@3.13 portaudio create-dmg
@@ -26,72 +46,124 @@ jobs:
           .venv/bin/pip install "py2app==0.28.10" "huggingface_hub>=0.20"
           .venv/bin/pip install -e .
           .venv/bin/pip install "pytest>=8"
-          echo "$PWD/.venv/bin" >> $GITHUB_PATH
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Run unit tests
-        run: |
-          source .venv/bin/activate
-          python -m pytest tests/ -v
+        run: python -m pytest tests/ -v
 
-      - name: Build SwiftUI Aside.app
+      - name: Build native Aside.app
+        run: scripts/build_swiftui_app.sh release
+
+      - name: Verify unsigned bundle structure
+        run: scripts/verify_swiftui_bundle.sh dist-swiftui/Aside.app
+
+      - name: Import Developer ID certificate
         env:
-          MODEL_REVISION: ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          source .venv/bin/activate
-          scripts/build_swiftui_app.sh release
+          set -euo pipefail
+          CERTIFICATE_PATH="$RUNNER_TEMP/aside-certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/aside-signing.keychain-db"
+          printf '%s' "$MACOS_CERTIFICATE" | base64 -D > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security \
+            -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+          IDENTITIES=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")
+          printf '%s\n' "$IDENTITIES"
+          IDENTITY_COUNT=$(printf '%s\n' "$IDENTITIES" | grep -c 'Developer ID Application:' || true)
+          test "$IDENTITY_COUNT" -eq 1
+          IDENTITY_HASH=$(printf '%s\n' "$IDENTITIES" | awk '/Developer ID Application:/ {print $2; exit}')
+          test -n "$IDENTITY_HASH"
+          echo "CODESIGN_IDENTITY=$IDENTITY_HASH" >> "$GITHUB_ENV"
+          echo "BUILD_KEYCHAIN_PATH=$KEYCHAIN_PATH" >> "$GITHUB_ENV"
 
-      - name: Verify SwiftUI bundle before signing
+      - name: Sign native app inside-out
+        run: scripts/sign_swiftui_bundle.sh "$CODESIGN_IDENTITY" dist-swiftui/Aside.app
+
+      - name: Smoke-launch signed bundle
+        run: scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app
+
+      - name: Package and sign native DMG
+        run: scripts/package_swiftui_dmg.sh "$CODESIGN_IDENTITY"
+
+      - name: Store notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARIZE_PASSWORD: ${{ secrets.NOTARIZE_PASSWORD }}
         run: |
-          source .venv/bin/activate
-          scripts/verify_swiftui_bundle.sh dist-swiftui/Aside.app
+          xcrun notarytool store-credentials "$NOTARY_PROFILE" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$NOTARIZE_PASSWORD" \
+            --keychain "$BUILD_KEYCHAIN_PATH"
 
-      - name: Codesign SwiftUI app
+      - name: Notarize and staple native DMG
         run: |
-          codesign --deep --force --sign - \
-            --entitlements entitlements.plist dist-swiftui/Aside.app
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=( dist-swiftui/Aside-SwiftUI-*.dmg )
+          test "${#DMGS[@]}" -eq 1
+          scripts/notarize_swiftui_dmg.sh \
+            "$NOTARY_PROFILE" "$BUILD_KEYCHAIN_PATH" "${DMGS[0]}"
 
-      - name: Verify signed SwiftUI bundle
+      - name: Verify and smoke the DMG-installed copy
         run: |
-          source .venv/bin/activate
-          scripts/verify_swiftui_bundle.sh --codesign dist-swiftui/Aside.app
+          set -euo pipefail
+          shopt -s nullglob
+          DMGS=( dist-swiftui/Aside-SwiftUI-*.dmg )
+          test "${#DMGS[@]}" -eq 1
+          INSTALL_ROOT="$RUNNER_TEMP/Aside-Install"
+          scripts/verify_swiftui_dmg.sh --distribution \
+            --copy-to "$INSTALL_ROOT" "${DMGS[0]}"
+          scripts/smoke_swiftui_launch.sh --app "$INSTALL_ROOT/Aside.app"
 
-      - name: Smoke-launch SwiftUI bundle with embedded helper
-        run: |
-          source .venv/bin/activate
-          scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app
-
-      - name: Package SwiftUI DMG
-        run: |
-          source .venv/bin/activate
-          scripts/package_swiftui_dmg.sh
-
-      - name: Verify SwiftUI DMG
+      - name: Record candidate identity and digest
         run: |
           set -euo pipefail
           shopt -s nullglob
           DMGS=( dist-swiftui/Aside-SwiftUI-*.dmg )
           test "${#DMGS[@]}" -eq 1
           DMG="${DMGS[0]}"
-          echo "DMG: $DMG"
-          hdiutil verify "$DMG"
-          MOUNT=$(hdiutil attach "$DMG" -nobrowse -readonly | tail -1 | awk '{print $3}')
-          echo "Mounted at: $MOUNT"
-          scripts/verify_swiftui_bundle.sh --codesign "$MOUNT/Aside.app"
-          hdiutil detach "$MOUNT"
+          MANIFEST="${DMG%.dmg}.release-manifest.txt"
+          shasum -a 256 "$DMG" > "$DMG.sha256"
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "artifact=$(basename "$DMG")"
+            echo "artifact_sha256=$(awk '{print $1}' "$DMG.sha256")"
+            echo "model_revision=$MODEL_REVISION"
+            echo "macos=$(sw_vers -productVersion)"
+            echo "architecture=$(uname -m)"
+            echo "python=$(python --version 2>&1)"
+            echo "swift=$(swift --version | head -1)"
+            xcodebuild -version | sed 's/^/xcode=/'
+          } | tee "$MANIFEST"
 
-      - name: Confirm SwiftUI DMG name matches src/aside __version__
+      - name: Remove temporary signing keychain
+        if: always()
         run: |
-          set -euo pipefail
-          PYVER=$(python -c "import sys; sys.path.insert(0,'src'); from aside import __version__; print(__version__)")
-          DMG_NAME=$(basename dist-swiftui/Aside-SwiftUI-*.dmg)
-          echo "src/aside/__init__.py __version__ = $PYVER"
-          echo "DMG filename                       = $DMG_NAME"
-          test "$DMG_NAME" = "Aside-SwiftUI-${PYVER}.dmg"
+          if [[ -n "${BUILD_KEYCHAIN_PATH:-}" && -f "$BUILD_KEYCHAIN_PATH" ]]; then
+            security delete-keychain "$BUILD_KEYCHAIN_PATH"
+          fi
+          rm -f "$RUNNER_TEMP/aside-certificate.p12"
 
-      - name: Upload SwiftUI DMG as build artifact
+      - name: Upload notarized candidate and evidence
         uses: actions/upload-artifact@v4
         with:
-          name: Aside-SwiftUI-rehearsal-dmg
-          path: dist-swiftui/Aside-SwiftUI-*.dmg
+          name: Aside-SwiftUI-notarized-rehearsal
+          path: |
+            dist-swiftui/Aside-SwiftUI-*.dmg
+            dist-swiftui/Aside-SwiftUI-*.dmg.sha256
+            dist-swiftui/Aside-SwiftUI-*.release-manifest.txt
+            dist-swiftui/Aside-SwiftUI-*.notary.json
           if-no-files-found: error
           retention-days: 14

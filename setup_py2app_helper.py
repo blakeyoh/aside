@@ -1,7 +1,7 @@
 """Build the Python stdio helper as an embeddable py2app bundle.
 
 The SwiftUI app launches this helper from:
-  Aside.app/Contents/Resources/AsideHelper.app/Contents/MacOS/AsideHelper
+  Aside.app/Contents/Helpers/AsideHelper.app/Contents/MacOS/AsideHelper
 """
 
 from pathlib import Path
@@ -29,15 +29,17 @@ MODEL_DIR = Path("vendor/models/faster-whisper-base")
 OPTIONS = {
     "plist": {
         "CFBundleName": "AsideHelper",
-        "CFBundleDisplayName": "AsideHelper",
+        # Keep the executable/bundle identity distinct while making any TCC
+        # attribution user-facing and consistent with the containing app.
+        "CFBundleDisplayName": "Aside",
         "CFBundleIdentifier": "com.blakeyoh.aside.helper",
         "CFBundleExecutable": "AsideHelper",
         "CFBundlePackageType": "APPL",
+        "LSMinimumSystemVersion": "13.0",
         "LSUIElement": True,
         "NSMicrophoneUsageDescription": "Aside needs microphone access to transcribe your speech locally.",
     },
     "packages": [
-        "aside",
         "faster_whisper",
         "ctranslate2",
         "tokenizers",
@@ -54,7 +56,11 @@ OPTIONS = {
     ],
     "excludes": [
         "IPython",
+        # The native helper owns no UI. Keeping the legacy Tk modules out also
+        # prevents py2app's Tk recipe from registering a GUI during packaging.
+        "aside.ui",
         "customtkinter",
+        "tkinter",
         "jax",
         "llvmlite",
         "matplotlib",

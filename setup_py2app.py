@@ -46,7 +46,7 @@ OPTIONS = {
     "iconfile": "AppIcon.icns",
     "plist": "Info.plist",
     # Note: py2app 0.28 does not support a `codesign_entitlements` option.
-    # entitlements.plist is applied later by `codesign --entitlements`
+    # entitlements-helper.plist is applied later by `codesign --entitlements`
     # in scripts/package_dmg.sh and the GH Actions release workflow.
     "packages": [
         "aside",
