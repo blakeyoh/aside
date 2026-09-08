@@ -40,7 +40,6 @@ OPTIONS = {
         "NSMicrophoneUsageDescription": "Aside needs microphone access to transcribe your speech locally.",
     },
     "packages": [
-        "aside",
         "faster_whisper",
         "ctranslate2",
         "tokenizers",
@@ -57,7 +56,11 @@ OPTIONS = {
     ],
     "excludes": [
         "IPython",
+        # The native helper owns no UI. Keeping the legacy Tk modules out also
+        # prevents py2app's Tk recipe from registering a GUI during packaging.
+        "aside.ui",
         "customtkinter",
+        "tkinter",
         "jax",
         "llvmlite",
         "matplotlib",
