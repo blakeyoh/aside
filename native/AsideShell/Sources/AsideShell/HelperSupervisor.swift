@@ -418,8 +418,14 @@ struct HotkeyConfig {
     }
 }
 
-func bundledResourceURL() -> URL? {
-    Bundle.main.resourceURL
+func bundledHelperExecutableURL() -> URL {
+    Bundle.main.bundleURL
+        .appendingPathComponent("Contents")
+        .appendingPathComponent("Helpers")
+        .appendingPathComponent("AsideHelper.app")
+        .appendingPathComponent("Contents")
+        .appendingPathComponent("MacOS")
+        .appendingPathComponent("AsideHelper")
 }
 
 func processHasArgument(_ name: String) -> Bool {
@@ -450,20 +456,14 @@ func swiftProtocolSmokeLogPath() -> String? {
 }
 
 func resolvedHelperLaunch(environment: [String: String]) -> HelperLaunch {
-    if let resources = bundledResourceURL() {
-        let helperExecutable = resources
-            .appendingPathComponent("AsideHelper.app")
-            .appendingPathComponent("Contents")
-            .appendingPathComponent("MacOS")
-            .appendingPathComponent("AsideHelper")
-        if FileManager.default.isExecutableFile(atPath: helperExecutable.path) {
-            return HelperLaunch(
-                executable: helperExecutable,
-                arguments: [],
-                workingDirectory: resources,
-                pythonPath: nil
-            )
-        }
+    let helperExecutable = bundledHelperExecutableURL()
+    if FileManager.default.isExecutableFile(atPath: helperExecutable.path) {
+        return HelperLaunch(
+            executable: helperExecutable,
+            arguments: [],
+            workingDirectory: Bundle.main.bundleURL,
+            pythonPath: nil
+        )
     }
 
     let repoRoot = resolvedRepoRoot(environment: environment)

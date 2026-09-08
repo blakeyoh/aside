@@ -113,18 +113,22 @@ These tests verify the app starts, stops, and manages its window correctly. No d
 - [ ] Expected: Aside appears as a regular app (Dock icon/running indicator may be visible)
 - [ ] **Result:** ________________________________________
 
-### T1.7: SwiftUI Release DMG Build
+### T1.7: Signed and Notarized SwiftUI Release DMG
 
 - [ ] Set `MODEL_REVISION` to a pinned 40-character SHA from `git ls-remote https://huggingface.co/Systran/faster-whisper-base main`
 - [ ] Run: `MODEL_REVISION=<sha> scripts/build_swiftui_app.sh release`
 - [ ] Run: `scripts/verify_swiftui_bundle.sh dist-swiftui/Aside.app`
-- [ ] Run: `scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app`
-- [ ] Run: `scripts/package_swiftui_dmg.sh`
-- [ ] Expected: `dist-swiftui/Aside-SwiftUI-1.3.0.dmg` exists and contains `Aside.app`
-- [ ] Install from the DMG into `/Applications`
+- [ ] Follow `docs/release-signing.md` to sign inside-out with Developer ID, package the signed DMG, notarize it, and staple the ticket
+- [ ] Run: `scripts/verify_swiftui_dmg.sh --distribution --copy-to /private/tmp/Aside-Install dist-swiftui/Aside-SwiftUI-1.3.0.dmg`
+- [ ] Run: `scripts/smoke_swiftui_launch.sh --app /private/tmp/Aside-Install/Aside.app`
+- [ ] Expected: the DMG and copied app pass Developer ID, hardened-runtime, notarization, Gatekeeper, structure, and launch checks
+- [ ] Copy `Aside.app` from the DMG into `/Applications` on a clean supported Mac; do not launch it from the mounted DMG
 - [ ] Double-click `/Applications/Aside.app`
 - [ ] Expected: Settings window appears automatically and menu bar shows Aside microphone icon
 - [ ] Expected: Aside appears as a regular app (Dock icon/running indicator may be visible)
+- [ ] Expected: the first permission prompts name Aside understandably; helper and shell both quit fully
+- [ ] Repeat after a normal update and confirm grants and user data are preserved
+- [ ] Complete one real microphone-to-text dictation without Terminal, Homebrew, or global Python
 - [ ] **Result:** ________________________________________
 
 ### T1.8: Onboarding Dismissal Without Grants Re-prompts

@@ -81,10 +81,11 @@ replacement for the manual dictation smoke gate below.
 The credible packaging path is a native macOS app bundle that embeds:
 
 - the compiled SwiftUI shell as the main executable
-- the existing Python helper environment/resources inside the app bundle
+- the existing Python helper environment in the standard
+  `Contents/Helpers/AsideHelper.app` nested-code location
 - the bundled faster-whisper model resources already used by the py2app path
-- signing entitlements for Microphone, Accessibility-driven text injection, and
-  keyboard listen-event access
+- narrowly scoped helper runtime/audio entitlements, with Accessibility and
+  Input Monitoring grants attributed to the installed app identity
 
 The native release workflow now builds the SwiftUI shell with an embedded
 py2app helper. The standalone customtkinter bundle is compatibility-only.

@@ -76,10 +76,14 @@ source .venv/bin/activate
 MODEL_REVISION=ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66 \
   scripts/build_swiftui_app.sh release
 scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app
-scripts/package_swiftui_dmg.sh
 ```
 
-This is a developer candidate, not release certification. The source launcher and legacy customtkinter bundle remain available for compatibility testing, but only `scripts/build_swiftui_app.sh` plus `scripts/package_swiftui_dmg.sh` define the native release artifact.
+This produces an unsigned developer candidate, not a distributable release.
+Developer ID signing, DMG packaging, notarization, stapling, and Gatekeeper
+validation are fail-closed and documented in
+[`docs/release-signing.md`](docs/release-signing.md). The source launcher and
+legacy customtkinter bundle remain available for compatibility testing, but
+only the native scripts define the release artifact.
 
 ## Aside vs. Wispr Flow
 
@@ -109,6 +113,7 @@ See [docs/voice-commands.md](docs/voice-commands.md) for the full reference.
 - [Custom dictionary](docs/custom-dictionary.md)
 - [Manual smoke test plan](docs/smoke-test-plan.md)
 - [SwiftUI release audit and implementation order](docs/swiftui-release-audit-2026-09-08.md)
+- [Developer ID signing and notarization](docs/release-signing.md)
 - [Historical py2app packaging status](docs/packaging-status.md)
 - [Launch conflict resolution](docs/launch-conflict-resolution-2026-04-29.md)
 

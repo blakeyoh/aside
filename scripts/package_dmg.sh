@@ -39,7 +39,7 @@ if codesign -dv dist/Aside.app 2>&1 | grep -q "^Authority="; then
   echo "==> Preserving existing Developer ID signature"
 else
   echo "==> Ad-hoc codesigning dist/Aside.app (no real identity present)"
-  codesign --deep --force --sign - --entitlements entitlements.plist dist/Aside.app
+  codesign --deep --force --sign - --entitlements entitlements-helper.plist dist/Aside.app
 fi
 
 # create-dmg copies the *contents* of its source folder into the DMG root,

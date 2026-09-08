@@ -68,7 +68,7 @@ if [[ ! -f "setup_py2app.py" ]]; then
   exit 1
 fi
 
-for required_file in Info.plist AppIcon.icns aside-logo.png entitlements.plist; do
+for required_file in Info.plist AppIcon.icns aside-logo.png entitlements-helper.plist; do
   if [[ ! -f "$required_file" ]]; then
     echo "ERROR: required packaging input is missing: $required_file"
     exit 1

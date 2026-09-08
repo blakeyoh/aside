@@ -29,7 +29,7 @@ scripts/smoke_swiftui_launch.sh      # bounded shell/helper protocol smoke
 .venv/bin/python3 -m aside           # legacy source UI compatibility path
 ```
 
-`setup.sh` auto-installs Homebrew Python 3.13 if missing and installs the matching `python-tk@3.13` formula. The release artifact is `dist-swiftui/Aside.app`, built by `scripts/build_swiftui_app.sh release` and packaged by `scripts/package_swiftui_dmg.sh`. The standalone `dist/Aside.app` py2app bundle is legacy compatibility evidence only.
+`setup.sh` auto-installs Homebrew Python 3.13 if missing and installs the matching `python-tk@3.13` formula. The native candidate is `dist-swiftui/Aside.app`, built by `scripts/build_swiftui_app.sh release`. Distribution requires the Developer ID and notarization sequence in `docs/release-signing.md`; ad-hoc native release DMGs are rejected. The standalone `dist/Aside.app` py2app bundle is legacy compatibility evidence only.
 
 Config: `~/.aside/config.json`. Dictionary: `~/.aside/dictionary.txt`. Auto-migrated from HushedHippo and WhisperDictation paths on first launch.
 
@@ -154,7 +154,7 @@ Protocol smoke uses fake audio/hotkeys/transcription and does not prove working 
 
 ### Release authority
 
-`main` is the canonical integration base. The native SwiftUI DMG is the only publish path. Never infer native release readiness from the legacy py2app workflow, a protocol-smoke `ready` event, or historical technical-spike evidence. Read `docs/swiftui-release-audit-2026-09-08.md` before release work and stay within the assigned R-number.
+`main` is the canonical integration base. The native SwiftUI DMG is the only publish path. Never infer native release readiness from the legacy py2app workflow, a protocol-smoke `ready` event, or historical technical-spike evidence. Never weaken `scripts/sign_swiftui_bundle.sh`, `scripts/notarize_swiftui_dmg.sh`, or `scripts/verify_swiftui_dmg.sh` to make a release pass without Developer ID, hardened runtime, notarization, stapling, and Gatekeeper. Read `docs/swiftui-release-audit-2026-09-08.md` before release work and stay within the assigned R-number.
 
 ### Push-to-talk must stop on modifier release
 Push-to-talk hotkeys cannot rely on `kCGEventKeyUp` alone. On macOS, releasing `Ctrl` or `Alt` before the trigger key often strips the modifier flag from the later key-up event. Preserve `kCGEventFlagsChanged` handling so recording stops when the modifier is released, otherwise push-to-talk can remain stuck recording until the shortcut is pressed again.
