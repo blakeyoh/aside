@@ -3,6 +3,7 @@
 All functions are pure and side-effect-free except open_privacy_pane(),
 which launches System Settings. Safe to call from any thread.
 """
+
 import ctypes
 import logging
 import webbrowser
@@ -21,6 +22,7 @@ def check_microphone() -> PermissionStatus:
     """Query AVFoundation authorization status for audio input."""
     try:
         from AVFoundation import AVCaptureDevice, AVMediaTypeAudio
+
         status = AVCaptureDevice.authorizationStatusForMediaType_(AVMediaTypeAudio)
         # 0=NotDetermined, 1=Restricted, 2=Denied, 3=Authorized
         if status == 3:
@@ -37,6 +39,7 @@ def check_accessibility() -> PermissionStatus:
     """Check whether the process is trusted for accessibility (AXIsProcessTrusted)."""
     try:
         from ApplicationServices import AXIsProcessTrusted
+
         trusted = AXIsProcessTrusted()
     except ImportError:
         # AXIsProcessTrusted lives in ApplicationServices, which ships inside
@@ -61,6 +64,7 @@ def request_accessibility() -> PermissionStatus:
             AXIsProcessTrustedWithOptions,
             kAXTrustedCheckOptionPrompt,
         )
+
         AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: True})
     except Exception:
         logger.debug("Unable to request Accessibility access", exc_info=True)
@@ -84,7 +88,9 @@ def _check_input_monitoring_iohid() -> PermissionStatus:
         lib.IOHIDCheckAccess.argtypes = [ctypes.c_uint32]
         result = int(lib.IOHIDCheckAccess(_IOHID_REQUEST_TYPE_LISTEN_EVENT))
     except Exception:
-        logger.debug("IOHIDCheckAccess unavailable; assuming input monitoring not determined")
+        logger.debug(
+            "IOHIDCheckAccess unavailable; assuming input monitoring not determined"
+        )
         return PermissionStatus.NOT_DETERMINED
     if result == 0:
         return PermissionStatus.GRANTED
@@ -97,6 +103,7 @@ def check_input_monitoring() -> PermissionStatus:
     """Query keyboard listen-event access for Input Monitoring."""
     try:
         from Quartz import CGPreflightListenEventAccess
+
         if bool(CGPreflightListenEventAccess()):
             return PermissionStatus.GRANTED
     except Exception:
@@ -109,6 +116,7 @@ def request_input_monitoring() -> PermissionStatus:
     """Ask macOS to prompt for Input Monitoring access, then return current status."""
     try:
         from Quartz import CGRequestListenEventAccess
+
         if bool(CGRequestListenEventAccess()):
             return PermissionStatus.GRANTED
     except Exception:
@@ -127,15 +135,19 @@ def request_input_monitoring() -> PermissionStatus:
 
 
 _PANES = {
-    "microphone":       "com.apple.preference.security?Privacy_Microphone",
-    "accessibility":    "com.apple.preference.security?Privacy_Accessibility",
+    "microphone": "com.apple.preference.security?Privacy_Microphone",
+    "accessibility": "com.apple.preference.security?Privacy_Accessibility",
     "input_monitoring": "com.apple.preference.security?Privacy_ListenEvent",
 }
 
 
 def open_privacy_pane(pane: str) -> None:
     """Open the matching Privacy pane in System Settings / System Preferences."""
-    url = f"x-apple.systempreferences:{_PANES[pane]}"
+    pane_path = _PANES.get(pane)
+    if not pane_path:
+        logger.error(f"Unknown privacy pane requested: {pane}")
+        return
+    url = f"x-apple.systempreferences:{pane_path}"
     webbrowser.open(url)
 
 

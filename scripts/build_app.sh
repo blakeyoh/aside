@@ -57,8 +57,11 @@ if [[ "$MODE" == "release" ]]; then
   fi
 fi
 
-# Dev mode: default to tracking main if no pin was provided.
-MODEL_REVISION="${MODEL_REVISION:-main}"
+# Dev mode: default to the same pinned SHA the release build uses so dev
+# bundles are reproducible and integrity-checked by default (see
+# .github/workflows/release.yml — keep this in lockstep). Override with
+# MODEL_REVISION=<sha|main> to iterate against a different snapshot.
+MODEL_REVISION="${MODEL_REVISION:-ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66}"
 
 if [[ ! -f "setup_py2app.py" ]]; then
   echo "Run this script from the repository root."

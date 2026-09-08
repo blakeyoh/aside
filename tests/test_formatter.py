@@ -1,4 +1,3 @@
-import pytest
 from aside.punctuation.formatter import format_text
 
 

@@ -1,8 +1,8 @@
 import queue
 
-from aside.ui import app as app_module
-from aside.ui.app import (
-    App,
+from aside.ui import launch as launch_module
+from aside.ui.app import App
+from aside.ui.launch import (
     UI_ACTION_SHOW_ONBOARDING,
     UI_ACTION_SHOW_SETTINGS,
     initial_launch_target,
@@ -29,7 +29,7 @@ class FakeTkRoot:
 
 
 def test_register_macos_reopen_handlers_registers_dock_and_preferences(monkeypatch):
-    monkeypatch.setattr(app_module.sys, "platform", "darwin")
+    monkeypatch.setattr(launch_module.sys, "platform", "darwin")
     root = FakeTkRoot()
     callback = object()
 
@@ -46,7 +46,7 @@ def test_register_macos_reopen_handlers_registers_dock_and_preferences(monkeypat
 
 
 def test_register_macos_reopen_handlers_noops_off_macos(monkeypatch):
-    monkeypatch.setattr(app_module.sys, "platform", "linux")
+    monkeypatch.setattr(launch_module.sys, "platform", "linux")
     root = FakeTkRoot()
 
     assert register_macos_reopen_handlers(root, object()) == ()

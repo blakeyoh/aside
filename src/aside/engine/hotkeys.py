@@ -6,9 +6,10 @@ to a queue. It NEVER acquires threading.Lock.
 
 Call poll() from your UI's event loop (~10ms interval) to drain the queue.
 """
+
 import queue
 import threading
-from typing import Callable, Optional
+from typing import Callable
 
 try:
     from Quartz import (
@@ -34,6 +35,7 @@ try:
         CFRunLoopStop,
         kCFRunLoopCommonModes,
     )
+
     QUARTZ_AVAILABLE = True
 except ImportError:
     # Allow import/use of non-Quartz helpers in headless or non-macOS tests.
@@ -88,15 +90,59 @@ _FLAG_TO_MOD = {
 
 # Map trigger strings to macOS virtual keycodes
 _KEYCODE_MAP = {
-    "space": 49, "return": 36, "tab": 48, "escape": 53, "backspace": 51,
-    "a": 0, "b": 11, "c": 8, "d": 2, "e": 14, "f": 3, "g": 5, "h": 4,
-    "i": 34, "j": 38, "k": 40, "l": 37, "m": 46, "n": 45, "o": 31,
-    "p": 35, "q": 12, "r": 15, "s": 1, "t": 17, "u": 32, "v": 9,
-    "w": 13, "x": 7, "y": 16, "z": 6,
-    "0": 29, "1": 18, "2": 19, "3": 20, "4": 21,
-    "5": 23, "6": 22, "7": 26, "8": 28, "9": 25,
-    "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97,
-    "f7": 98, "f8": 100, "f9": 101, "f10": 109, "f11": 103, "f12": 111,
+    "space": 49,
+    "return": 36,
+    "tab": 48,
+    "escape": 53,
+    "backspace": 51,
+    "a": 0,
+    "b": 11,
+    "c": 8,
+    "d": 2,
+    "e": 14,
+    "f": 3,
+    "g": 5,
+    "h": 4,
+    "i": 34,
+    "j": 38,
+    "k": 40,
+    "l": 37,
+    "m": 46,
+    "n": 45,
+    "o": 31,
+    "p": 35,
+    "q": 12,
+    "r": 15,
+    "s": 1,
+    "t": 17,
+    "u": 32,
+    "v": 9,
+    "w": 13,
+    "x": 7,
+    "y": 16,
+    "z": 6,
+    "0": 29,
+    "1": 18,
+    "2": 19,
+    "3": 20,
+    "4": 21,
+    "5": 23,
+    "6": 22,
+    "7": 26,
+    "8": 28,
+    "9": 25,
+    "f1": 122,
+    "f2": 120,
+    "f3": 99,
+    "f4": 118,
+    "f5": 96,
+    "f6": 97,
+    "f7": 98,
+    "f8": 100,
+    "f9": 101,
+    "f10": 109,
+    "f11": 103,
+    "f12": 111,
 }
 
 # Reverse map: keycode → config trigger name (for capture mode)
@@ -174,9 +220,7 @@ class HotkeyManager:
             return
 
         event_mask = (
-            (1 << kCGEventKeyDown)
-            | (1 << kCGEventKeyUp)
-            | (1 << kCGEventFlagsChanged)
+            (1 << kCGEventKeyDown) | (1 << kCGEventKeyUp) | (1 << kCGEventFlagsChanged)
         )
         eq = self._event_queue
 
@@ -196,7 +240,12 @@ class HotkeyManager:
                 tg_key = self._toggle_keycode
                 if hk_mask > 0 and keycode == hk_key and (flags & hk_mask) == hk_mask:
                     return None
-                if tg_mask > 0 and tg_key >= 0 and keycode == tg_key and (flags & tg_mask) == tg_mask:
+                if (
+                    tg_mask > 0
+                    and tg_key >= 0
+                    and keycode == tg_key
+                    and (flags & tg_mask) == tg_mask
+                ):
                     return None
             return event
 

@@ -12,7 +12,9 @@ Orchestrates the 8-stage pipeline:
 
 Stages 3-8 happen in this module's transcribe() method.
 """
+
 import logging
+import os
 import threading
 from typing import Callable
 
@@ -76,6 +78,8 @@ class Transcriber:
         self._number_mode = NumberMode()
         self._last_injection_length = 0
         self._dictionary_path = DICTIONARY_FILE
+        self._dict_cache = None
+        self._dict_mtime = 0.0
 
     def load_model(self) -> None:
         """Load Whisper model (call from background thread)."""
@@ -117,14 +121,28 @@ class Transcriber:
                 return
 
             # Stage 3: Dictionary Pre-Processing
-            dict_data = parse_dictionary(self._dictionary_path)
+            # ⚡ Bolt: Cache parsed dictionary data. Only re-read file if mtime changes
+            # This prevents redundant disk I/O on every transcription cycle
+            try:
+                current_mtime = os.path.getmtime(self._dictionary_path)
+            except OSError:
+                current_mtime = 0.0
+
+            cached_dict = self._dict_cache
+            if cached_dict is None or current_mtime != self._dict_mtime:
+                cached_dict = parse_dictionary(self._dictionary_path)
+                self._dict_cache = cached_dict
+                self._dict_mtime = current_mtime
+            dict_data = cached_dict
 
             # Combine defaults with user dictionary
             combined_hotwords = self._hotwords + [
                 hw for hw in dict_data.hotwords if hw not in self._hotwords
             ]
             hotwords_str = " ".join(combined_hotwords) or None
-            initial_prompt = self._context.build_initial_prompt(combined_hotwords) or None
+            initial_prompt = (
+                self._context.build_initial_prompt(combined_hotwords) or None
+            )
 
             # Stage 4: Whisper Transcription
             kwargs = {"vad_filter": True}
@@ -168,7 +186,9 @@ class Transcriber:
                 cleaned_text = apply_replacements(cleaned_text, combined_rules)
                 cleaned_text = format_text(
                     cleaned_text,
-                    capitalization=self._punctuation_config.get("capitalization", "sentence"),
+                    capitalization=self._punctuation_config.get(
+                        "capitalization", "sentence"
+                    ),
                     smart_quotes=self._punctuation_config.get("smart_quotes", False),
                     trailing_space=self._punctuation_config.get("trailing_space", True),
                 )
@@ -205,4 +225,4 @@ class Transcriber:
 
     def reload_dictionary(self) -> None:
         """Force re-read of dictionary file (called after UI edits)."""
-        pass
+        self._dict_cache = None

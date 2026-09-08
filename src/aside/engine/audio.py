@@ -3,6 +3,7 @@
 Manages InputStream lifecycle. Accumulates numpy chunks during recording.
 stream.stop() MUST be called from a background thread (it blocks).
 """
+
 import logging
 import numpy as np
 import sounddevice as sd
@@ -32,6 +33,7 @@ class AudioCapture:
             return False
 
         from aside.permissions import check_microphone, PermissionStatus
+
         if check_microphone() == PermissionStatus.DENIED:
             logger.warning("Microphone access denied")
             if self._on_mic_denied:
@@ -87,7 +89,9 @@ class AudioCapture:
         """Pre-initialize PortAudio to avoid first-recording latency."""
         try:
             s = sd.InputStream(
-                samplerate=SAMPLE_RATE, channels=1, dtype="float32",
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                dtype="float32",
                 callback=lambda *_: None,
             )
             s.start()

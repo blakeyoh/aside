@@ -34,63 +34,41 @@ from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.onboarding import OnboardingWindow
 from aside.ui.settings import build_settings
+from aside.ui.launch import (
+    UI_ACTION_SHOW_ONBOARDING,
+    UI_ACTION_SHOW_SETTINGS,
+    initial_launch_target,
+    register_macos_reopen_handlers,
+    scroll_units_from_delta,
+)
 from aside.ui.theme import BG, FG, FG2, FONT, POLL_MS, STATUS_MAP
 
 logger = logging.getLogger(__name__)
 
 ICON_PATH = resource_path("aside-logo.png")
 LOCK_FILE = CONFIG_DIR / "aside.lock"
-UI_ACTION_SHOW_SETTINGS = "show_settings"
-UI_ACTION_SHOW_ONBOARDING = "show_onboarding"
-
-
-def initial_launch_target(config: dict) -> str:
-    """Return the first visible surface to show after startup."""
-    return "settings" if config.get("first_run_complete") else "onboarding"
-
-
-def register_macos_reopen_handlers(root, callback) -> tuple[str, ...]:
-    """Register Tk macOS app-menu callbacks that reopen the settings window."""
-    if sys.platform != "darwin":
-        return ()
-
-    registered = []
-    for command_name in ("tk::mac::ReopenApplication", "tk::mac::ShowPreferences"):
-        try:
-            root.createcommand(command_name, callback)
-            registered.append(command_name)
-        except Exception:
-            logger.debug("Unable to register %s", command_name, exc_info=True)
-    return tuple(registered)
-
-
-def scroll_units_from_delta(delta, platform: str = sys.platform) -> int:
-    """Convert a Tk MouseWheel delta into conservative canvas scroll units."""
-    try:
-        numeric_delta = float(delta)
-    except (TypeError, ValueError):
-        return 0
-
-    if numeric_delta == 0:
-        return 0
-
-    if platform.startswith("win"):
-        magnitude = int(abs(numeric_delta) / 120)
-    else:
-        magnitude = int(abs(numeric_delta))
-
-    magnitude = max(1, min(magnitude, 12))
-    return -magnitude if numeric_delta > 0 else magnitude
 
 
 def _acquire_lock():
     """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     try:
+        CONFIG_DIR.chmod(0o700)
+    except OSError as exc:
+        logger.warning(f"Could not enforce 0o700 on {CONFIG_DIR}: {exc}")
+    try:
         fd = open(LOCK_FILE, "w")
+    except OSError:
+        return None
+    try:
+        LOCK_FILE.chmod(0o600)
+    except OSError as exc:
+        logger.warning(f"Could not enforce 0o600 on {LOCK_FILE}: {exc}")
+    try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         return fd
     except OSError:
+        fd.close()
         return None
 
 
@@ -555,6 +533,10 @@ class App(ctk.CTk):
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{term}")
+        try:
+            DICTIONARY_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         entry.delete(0, "end")
         self._check_hw_add_state()
         self._refresh_dict_count()
@@ -570,6 +552,10 @@ class App(ctk.CTk):
         ensure_dictionary_file()
         with open(DICTIONARY_FILE, "a", encoding="utf-8") as f:
             f.write(f"\n{wrong} \u2192 {right}")
+        try:
+            DICTIONARY_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         self._widgets["rep_wrong"].delete(0, "end")
         self._widgets["rep_right"].delete(0, "end")
         self._check_rep_add_state()
@@ -581,6 +567,7 @@ class App(ctk.CTk):
         """Reload dictionary and update term count."""
         self._transcriber.reload_dictionary()
         self._refresh_dict_count()
+        self._show_status_message("Dictionary reloaded", color="#30D158")
 
     def _refresh_dict_count(self):
         """Update the dictionary term count label."""

@@ -1,5 +1,4 @@
-import pytest
-from aside.dictionary.hotwords import parse_dictionary, DictionaryData
+from aside.dictionary.hotwords import parse_dictionary
 
 
 class TestParseDictionary:
@@ -79,3 +78,16 @@ class TestParseDictionary:
         f.write_text("HIPAA\nKubernetes\n")
         result = parse_dictionary(f)
         assert result.whisper_hotwords == "HIPAA Kubernetes"
+
+    def test_compiled_replacements_drive_substitution(self, tmp_path):
+        from aside.dictionary.replacements import apply_replacements
+
+        f = tmp_path / "dict.txt"
+        f.write_text("hip a → HIPAA\n")
+        result = parse_dictionary(f)
+
+        assert result.compiled_replacements  # pre-compiled, ready for reuse
+        assert (
+            apply_replacements("the hip a rule", result.compiled_replacements)
+            == "the HIPAA rule"
+        )

@@ -126,7 +126,11 @@ def test_helper_commands_drive_recording_transcription_and_shutdown():
     status_events = [event["state"] for event in events if event["type"] == "status"]
 
     assert status_events == ["ready", "recording", "transcribing", "ready"]
-    assert {"type": "transcription", "text": "hello world", "protocolVersion": 1} in events
+    assert {
+        "type": "transcription",
+        "text": "hello world",
+        "protocolVersion": 1,
+    } in events
     assert events[-1]["type"] == "exit"
 
 
@@ -177,13 +181,33 @@ def test_helper_dictionary_add_and_remove(monkeypatch, tmp_path):
     app = _make_helper(stdout)
 
     app.handle_command({"command": "addHotword", "term": "HIPAA"})
-    app.handle_command({"command": "addReplacement", "wrong": "hip a", "right": "HIPAA"})
+    app.handle_command(
+        {"command": "addReplacement", "wrong": "hip a", "right": "HIPAA"}
+    )
     app.handle_command({"command": "removeHotword", "term": "HIPAA"})
     app.handle_command({"command": "removeReplacement", "wrong": "hip a"})
 
     events = _events(stdout)
-    dictionary_events = [event["dictionary"] for event in events if event["type"] == "dictionary"]
+    dictionary_events = [
+        event["dictionary"] for event in events if event["type"] == "dictionary"
+    ]
 
     assert dictionary_events[-1]["hotwords"] == []
     assert dictionary_events[-1]["replacements"] == []
     assert dictionary_path.exists()
+
+
+def test_helper_dictionary_sanitizes_input(monkeypatch, tmp_path):
+    dictionary_path = tmp_path / "dictionary.txt"
+    monkeypatch.setattr(helper, "DICTIONARY_FILE", dictionary_path)
+    stdout = io.StringIO()
+    app = _make_helper(stdout)
+
+    app.handle_command({"command": "addHotword", "term": "bad\nword\r"})
+    app.handle_command(
+        {"command": "addReplacement", "wrong": "bad\nwrong\r", "right": "good\nright\r"}
+    )
+
+    content = dictionary_path.read_text(encoding="utf-8")
+    assert "\nbad word" in content
+    assert "\nbad wrong → good right" in content

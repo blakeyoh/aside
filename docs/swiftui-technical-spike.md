@@ -203,8 +203,10 @@ designed.
    detected.
 8. Alignment polish: make sure all left menu labels are left-aligned and that
    text, badges, fields, and buttons align consistently across panels.
-9. Release package: create the native SwiftUI release package, update versioning,
-   and verify the new app icon appears in the Dock when launched from an
-   installed bundle, not only through `scripts/run_swiftui_spike.sh`.
-10. CI smoke tests: add GitHub workflow coverage for install and release package
-    smoke tests, including helper launch and basic bundle verification.
+9. Installed-app visual smoke: verify the new app icon appears in the Dock when
+   launched from `/Applications`, not only from the source checkout.
+
+Completed follow-up: native SwiftUI release packaging and CI smoke coverage now
+exist via `scripts/build_swiftui_app.sh`, `scripts/package_swiftui_dmg.sh`,
+`scripts/verify_swiftui_bundle.sh`, `scripts/smoke_swiftui_launch.sh`, build
+smoke, release rehearsal, and tag release workflow gates.
