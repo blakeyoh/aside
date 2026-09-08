@@ -1,5 +1,10 @@
 # Aside — One-Double-Click Install for Non-Technical Users
 
+> Historical plan for the legacy customtkinter/py2app artifact. It is retained
+> as compatibility history, not current release authority. Follow
+> [the SwiftUI release audit](swiftui-release-audit-2026-09-08.md) and the native
+> `build_swiftui_app.sh` / `package_swiftui_dmg.sh` path for 1.3.0 and later.
+
 ## Context
 Today, installing Aside requires opening Terminal, running `./setup.sh`, waiting for Homebrew to install Python 3.13, then double-clicking Aside.app (a thin shell launcher that sources a `.venv` from `~/.aside/install_path.txt`). A non-technical user is locked out at step 1.
 

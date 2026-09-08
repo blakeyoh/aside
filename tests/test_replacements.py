@@ -1,5 +1,4 @@
-import pytest
-from aside.dictionary.replacements import apply_replacements
+from aside.dictionary.replacements import apply_replacements, _get_compiled_pattern
 
 
 class TestApplyReplacements:
@@ -8,7 +7,9 @@ class TestApplyReplacements:
 
     def test_simple_replacement(self):
         rules = {"hip a": "HIPAA"}
-        assert apply_replacements("the hip a regulation", rules) == "the HIPAA regulation"
+        assert (
+            apply_replacements("the hip a regulation", rules) == "the HIPAA regulation"
+        )
 
     def test_case_insensitive(self):
         rules = {"hip a": "HIPAA"}
@@ -28,7 +29,10 @@ class TestApplyReplacements:
 
     def test_replacement_with_arrow_in_value(self):
         rules = {"go to": "navigate → proceed"}
-        assert apply_replacements("go to the store", rules) == "navigate → proceed the store"
+        assert (
+            apply_replacements("go to the store", rules)
+            == "navigate → proceed the store"
+        )
 
     def test_empty_text(self):
         assert apply_replacements("", {"a": "b"}) == ""
@@ -36,3 +40,12 @@ class TestApplyReplacements:
     def test_unicode_replacement(self):
         rules = {"resume": "résumé"}
         assert apply_replacements("send your resume", rules) == "send your résumé"
+
+    def test_pattern_ending_in_nonword_char_matches(self):
+        # \b would fail after the trailing "."; lookarounds (?<!\w)/(?!\w) handle it
+        rules = {"a.w.s.": "AWS"}
+        assert apply_replacements("deploy a.w.s. today", rules) == "deploy AWS today"
+
+    def test_accepts_precompiled_pattern_list(self):
+        rules = [(_get_compiled_pattern("hip a"), "HIPAA")]
+        assert apply_replacements("the hip a rule", rules) == "the HIPAA rule"

@@ -3,12 +3,14 @@
 This spike proves the proposed native SwiftUI shell plus supervised local Python
 helper architecture without replacing the current customtkinter app.
 
-## Current Decision
+## Historical Decision
 
-Status: passed. The SwiftUI shell can supervise the Python helper, preserve the
-existing dictation path, and pass the quality smoke gate.
+Status: the source-checkout spike passed at the time recorded below. It is
+evidence for the architecture, not proof that the current installed, signed
+candidate passes permissions, distribution, recovery, or end-to-end dictation.
 
-Phase 2 visual migration is now allowed to proceed.
+Use the [current release audit](swiftui-release-audit-2026-09-08.md) for active
+scope, sequencing, and release gates.
 
 ## Architecture
 
@@ -84,10 +86,10 @@ The credible packaging path is a native macOS app bundle that embeds:
 - signing entitlements for Microphone, Accessibility-driven text injection, and
   keyboard listen-event access
 
-The spike intentionally does not replace `setup_py2app.py` or the current
-release workflow. Production packaging should be done as a follow-up after the
-permission identity smoke test confirms whether macOS attributes prompts to the
-SwiftUI app, the embedded helper, or both.
+The native release workflow now builds the SwiftUI shell with an embedded
+py2app helper. The standalone customtkinter bundle is compatibility-only.
+Installed-app permission identity, Developer ID signing, and notarization still
+require fresh evidence for the final candidate.
 
 ## Technical Spike Gate Checklist
 
@@ -203,8 +205,10 @@ designed.
    detected.
 8. Alignment polish: make sure all left menu labels are left-aligned and that
    text, badges, fields, and buttons align consistently across panels.
-9. Release package: create the native SwiftUI release package, update versioning,
-   and verify the new app icon appears in the Dock when launched from an
-   installed bundle, not only through `scripts/run_swiftui_spike.sh`.
-10. CI smoke tests: add GitHub workflow coverage for install and release package
-    smoke tests, including helper launch and basic bundle verification.
+9. Installed-app visual smoke: verify the new app icon appears in the Dock when
+   launched from `/Applications`, not only from the source checkout.
+
+Completed follow-up: native SwiftUI release packaging and CI smoke coverage now
+exist via `scripts/build_swiftui_app.sh`, `scripts/package_swiftui_dmg.sh`,
+`scripts/verify_swiftui_bundle.sh`, `scripts/smoke_swiftui_launch.sh`, build
+smoke, release rehearsal, and tag release workflow gates.

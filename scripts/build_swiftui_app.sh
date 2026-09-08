@@ -142,12 +142,7 @@ printf "APPL????" > "$APP/Contents/PkgInfo"
 chmod +x "$APP/Contents/MacOS/Aside"
 
 echo "==> Verifying SwiftUI bundle structure"
-test -f "$APP/Contents/Info.plist"
-test -x "$APP/Contents/MacOS/Aside"
-test -f "$APP/Contents/Resources/AppIcon.icns"
-test -f "$APP/Contents/Resources/NEW-aside-logo.png"
-test -x "$APP/Contents/Resources/AsideHelper.app/Contents/MacOS/AsideHelper"
-test -f "$APP/Contents/Resources/AsideHelper.app/Contents/Resources/faster-whisper-base/model.bin"
+scripts/verify_swiftui_bundle.sh "$APP"
 
 echo "==> Build complete"
 echo "App bundle: $APP"

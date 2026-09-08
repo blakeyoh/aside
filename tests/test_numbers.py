@@ -1,4 +1,3 @@
-import pytest
 from aside.commands.numbers import NumberMode
 
 
@@ -26,7 +25,10 @@ class TestNumberMode:
     def test_mixed_text_and_numbers(self):
         nm = NumberMode()
         nm.activate()
-        assert nm.process("call me at five five five one two three four") == "call me at 5551234"
+        assert (
+            nm.process("call me at five five five one two three four")
+            == "call me at 5551234"
+        )
 
     def test_teen_numbers(self):
         nm = NumberMode()
@@ -61,3 +63,18 @@ class TestNumberMode:
         nm.activate()
         nm.reset()
         assert nm.active is False
+
+    def test_number_run_between_words_keeps_spacing(self):
+        nm = NumberMode()
+        nm.activate()
+        assert nm.process("call one two now") == "call 12 now"
+
+    def test_text_between_number_runs_is_spaced(self):
+        nm = NumberMode()
+        nm.activate()
+        assert nm.process("one apple two") == "1 apple 2"
+
+    def test_bare_hundred_passes_through(self):
+        nm = NumberMode()
+        nm.activate()
+        assert nm.process("hundred dollars") == "hundred dollars"

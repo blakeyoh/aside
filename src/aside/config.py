@@ -3,6 +3,7 @@
 Config file: ~/.aside/config.json
 Migration: WhisperDictation → HushedHippo → Aside (checks in order)
 """
+
 import json
 import logging
 from pathlib import Path
@@ -52,7 +53,11 @@ DICTIONARY_TEMPLATE = """\
 # Old config paths to check for migration (newest first)
 _MIGRATION_PATHS = [
     Path.home() / "Library" / "Application Support" / "HushedHippo" / "config.json",
-    Path.home() / "Library" / "Application Support" / "WhisperDictation" / "config.json",
+    Path.home()
+    / "Library"
+    / "Application Support"
+    / "WhisperDictation"
+    / "config.json",
 ]
 
 
@@ -107,10 +112,18 @@ def save_config(cfg: dict) -> bool:
     """Save config to ~/.aside/config.json. Creates directory if needed."""
     try:
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            CONFIG_DIR.chmod(0o700)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o700 on {CONFIG_DIR}: {exc}")
         CONFIG_FILE.write_text(
             json.dumps(cfg, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
+        try:
+            CONFIG_FILE.chmod(0o600)
+        except OSError as exc:
+            logger.warning(f"Could not enforce 0o600 on {CONFIG_FILE}: {exc}")
         return True
     except OSError as exc:
         logger.error("Config save failed: %s", exc)
@@ -122,6 +135,14 @@ def ensure_dictionary_file() -> None:
     if not DICTIONARY_FILE.exists():
         try:
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+            try:
+                CONFIG_DIR.chmod(0o700)
+            except OSError as exc:
+                logger.warning(f"Could not enforce 0o700 on {CONFIG_DIR}: {exc}")
             DICTIONARY_FILE.write_text(DICTIONARY_TEMPLATE, encoding="utf-8")
+            try:
+                DICTIONARY_FILE.chmod(0o600)
+            except OSError as exc:
+                logger.warning(f"Could not enforce 0o600 on {DICTIONARY_FILE}: {exc}")
         except OSError as exc:
             logger.warning("Could not create dictionary template: %s", exc)

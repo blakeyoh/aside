@@ -1,5 +1,9 @@
 # Packaging Status Board
 
+> Historical status for the legacy customtkinter/py2app artifact. It does not
+> certify the native app or define the current release path. See
+> [the SwiftUI release audit](swiftui-release-audit-2026-09-08.md).
+
 ## Current Status
 - **Phase:** 3 (launch visibility + smoke-test recovery)
 - **In-flight:** `stabilize-launch-icon-install` keeps the `pyinstaller-and-more` packaging/runtime hardening and ports the launch-visibility intent from `fix-dock-icon-and-settings-launch-15421400996173080794` without taking the stale conflict resolution wholesale. First run now shows onboarding; later launches show Settings. Build smoke now verifies the bundled menu-bar icon resource and `LSUIElement=false`.

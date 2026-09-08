@@ -1,4 +1,4 @@
-# Aside — CLAUDE.md
+# Aside — AGENTS.md
 
 Open-source privacy-first voice dictation for macOS. Push-to-talk and toggle hotkeys capture audio, transcribe locally with faster-whisper, and type text at the cursor via Quartz keyboard events. No clipboard, no cloud, no telemetry.
 
@@ -142,11 +142,6 @@ File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined).
 swift build --package-path native/AsideShell
 scripts/smoke_swiftui_launch.sh
 ```
-
-`tests/conftest.py` stubs the macOS-only GUI/audio libraries when they're
-absent, so the runnable subset works on Linux too (for cloud agents). Tests
-needing the real native stack (e.g. the helper subprocess) skip off macOS and
-are covered by the macOS CI workflow.
 
 Protocol smoke uses fake audio/hotkeys/transcription and does not prove working dictation. Native release approval additionally requires the installed-artifact and manual gates in `docs/swiftui-release-audit-2026-09-08.md`.
 

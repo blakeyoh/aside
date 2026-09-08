@@ -4,7 +4,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.13%2B-blue.svg)](https://www.python.org/)
-[![macOS](https://img.shields.io/badge/macOS-11%2B%20arm64-lightgrey.svg)](https://www.apple.com/macos/)
+[![macOS](https://img.shields.io/badge/macOS-13%2B%20Apple%20Silicon-lightgrey.svg)](https://www.apple.com/macos/)
 
 Aside is a local-first voice dictation app for macOS. It uses OpenAI's Whisper model running entirely on your machine — no subscriptions, no cloud APIs, no audio ever leaving your computer. Hold a hotkey to dictate, release to transcribe, and your words appear wherever your cursor is.
 
@@ -23,17 +23,15 @@ Your audio never leaves your Mac. Aside makes zero network calls during normal o
 
 ## Download
 
-Download the latest `Aside-x.x.x.dmg` from the [Releases page](https://github.com/blakeyoh/aside/releases). Open the DMG, drag Aside to Applications, then double-click to launch.
+The latest published release is the legacy v1.2.1 app. The native SwiftUI 1.3.0 candidate is still being qualified and must not be published until its Developer ID, notarization, installed-app permission identity, and release gates pass. Track that work in the [SwiftUI release audit](docs/swiftui-release-audit-2026-09-08.md).
 
-> **First launch:** macOS may show "Apple could not verify…" because Aside is ad-hoc signed, not notarized. **Right-click Aside.app → Open → Open** to bypass this once. After that it opens normally.
-
-Aside includes the base Whisper model in the release app, so first launch does not need Terminal, Homebrew, Python, or a model download. It will walk you through granting the three required permissions: Microphone, Accessibility, and Input Monitoring.
+The intended native release artifact is `Aside-SwiftUI-x.x.x.dmg` for macOS 13 or later on Apple Silicon. It bundles the base Whisper model, so normal use requires no Terminal, Homebrew, global Python, model download, cloud API, or telemetry.
 
 ---
 
 ## Developer Setup
 
-**Requirements:** macOS 11+ (Apple Silicon), Homebrew. Python 3.13 is installed automatically if missing.
+**Requirements:** macOS 13+ on Apple Silicon, Homebrew, and Xcode Command Line Tools. Python 3.13 is installed automatically if missing.
 
 ```bash
 git clone https://github.com/blakeyoh/aside.git
@@ -63,15 +61,25 @@ source .venv/bin/activate && python -m aside
 
 First launch shows the permissions onboarding window. After permissions are complete, terminal and app launches open Settings so startup is visible and easy to validate. A microphone icon appears in your menu bar when Aside is running. It turns amber while recording and blue while transcribing. **Default hotkey:** hold `⌃ ⌥ Space` to record, release to transcribe.
 
-To build a local `.app` for developer testing:
+To smoke-test the SwiftUI shell from a source checkout:
 
 ```bash
 source .venv/bin/activate
-scripts/build_app.sh dev
-open dist/Aside.app
+scripts/smoke_swiftui_launch.sh
+scripts/run_swiftui_spike.sh
 ```
 
-Developer mode downloads the Whisper model once into the local cache. Release DMGs bundle the model inside `Aside.app`, so normal app use makes no network calls.
+To build the current native candidate locally with the reviewed model revision:
+
+```bash
+source .venv/bin/activate
+MODEL_REVISION=ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66 \
+  scripts/build_swiftui_app.sh release
+scripts/smoke_swiftui_launch.sh --app dist-swiftui/Aside.app
+scripts/package_swiftui_dmg.sh
+```
+
+This is a developer candidate, not release certification. The source launcher and legacy customtkinter bundle remain available for compatibility testing, but only `scripts/build_swiftui_app.sh` plus `scripts/package_swiftui_dmg.sh` define the native release artifact.
 
 ## Aside vs. Wispr Flow
 
@@ -100,7 +108,8 @@ See [docs/voice-commands.md](docs/voice-commands.md) for the full reference.
 - [Architecture](docs/architecture.md)
 - [Custom dictionary](docs/custom-dictionary.md)
 - [Manual smoke test plan](docs/smoke-test-plan.md)
-- [Packaging status](docs/packaging-status.md)
+- [SwiftUI release audit and implementation order](docs/swiftui-release-audit-2026-09-08.md)
+- [Historical py2app packaging status](docs/packaging-status.md)
 - [Launch conflict resolution](docs/launch-conflict-resolution-2026-04-29.md)
 
 ## Contributing

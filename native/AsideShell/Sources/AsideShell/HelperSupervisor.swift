@@ -20,7 +20,7 @@ final class HelperSupervisor: ObservableObject {
     private var didScheduleProtocolSmokeExit = false
 
     private var isProtocolSmokeMode: Bool {
-        ProcessInfo.processInfo.environment["ASIDE_SWIFTUI_PROTOCOL_SMOKE"] == "1"
+        swiftProtocolSmokeMode()
     }
 
     var helperDescription: String {
@@ -54,6 +54,9 @@ final class HelperSupervisor: ObservableObject {
 
         var childEnvironment = ProcessInfo.processInfo.environment
         childEnvironment["PYTHONUNBUFFERED"] = "1"
+        if isProtocolSmokeMode {
+            childEnvironment["ASIDE_HELPER_PROTOCOL_SMOKE"] = "1"
+        }
         if let pythonPath = launch.pythonPath {
             if let existing = childEnvironment["PYTHONPATH"], !existing.isEmpty {
                 childEnvironment["PYTHONPATH"] = "\(pythonPath):\(existing)"
@@ -72,8 +75,11 @@ final class HelperSupervisor: ObservableObject {
             guard !data.isEmpty else {
                 return
             }
-            Task { @MainActor in
-                self?.consumeStdout(data)
+            guard let supervisor = self else {
+                return
+            }
+            Task { @MainActor [supervisor, data] in
+                supervisor.consumeStdout(data)
             }
         }
 
@@ -82,14 +88,21 @@ final class HelperSupervisor: ObservableObject {
             guard !data.isEmpty else {
                 return
             }
-            Task { @MainActor in
-                self?.consumeStderr(data)
+            guard let supervisor = self else {
+                return
+            }
+            Task { @MainActor [supervisor, data] in
+                supervisor.consumeStderr(data)
             }
         }
 
         process.terminationHandler = { [weak self] finishedProcess in
-            Task { @MainActor in
-                self?.handleTermination(status: finishedProcess.terminationStatus)
+            let status = finishedProcess.terminationStatus
+            guard let supervisor = self else {
+                return
+            }
+            Task { @MainActor [supervisor, status] in
+                supervisor.handleTermination(status: status)
             }
         }
 
@@ -261,7 +274,23 @@ final class HelperSupervisor: ObservableObject {
             eventLog.removeFirst(eventLog.count - 80)
         }
         if isProtocolSmokeMode {
-            FileHandle.standardError.write(Data("[AsideShell] \(line)\n".utf8))
+            let data = Data("[AsideShell] \(line)\n".utf8)
+            FileHandle.standardError.write(data)
+            if let path = swiftProtocolSmokeLogPath() {
+                let url = URL(fileURLWithPath: path)
+                if !FileManager.default.fileExists(atPath: url.path) {
+                    FileManager.default.createFile(atPath: url.path, contents: nil)
+                }
+                if let handle = try? FileHandle(forWritingTo: url) {
+                    do {
+                        try handle.seekToEnd()
+                        try handle.write(contentsOf: data)
+                        try handle.close()
+                    } catch {
+                        try? handle.close()
+                    }
+                }
+            }
         }
     }
 
@@ -393,6 +422,33 @@ func bundledResourceURL() -> URL? {
     Bundle.main.resourceURL
 }
 
+func processHasArgument(_ name: String) -> Bool {
+    ProcessInfo.processInfo.arguments.contains(name)
+}
+
+func processArgumentValue(_ name: String) -> String? {
+    let args = ProcessInfo.processInfo.arguments
+    guard let index = args.firstIndex(of: name) else {
+        return nil
+    }
+    let valueIndex = args.index(after: index)
+    guard valueIndex < args.endIndex else {
+        return nil
+    }
+    let value = args[valueIndex]
+    return value.isEmpty ? nil : value
+}
+
+func swiftProtocolSmokeMode() -> Bool {
+    ProcessInfo.processInfo.environment["ASIDE_SWIFTUI_PROTOCOL_SMOKE"] == "1" ||
+        processHasArgument("--aside-protocol-smoke")
+}
+
+func swiftProtocolSmokeLogPath() -> String? {
+    processArgumentValue("--aside-smoke-log") ??
+        ProcessInfo.processInfo.environment["ASIDE_SWIFTUI_SMOKE_LOG_PATH"]
+}
+
 func resolvedHelperLaunch(environment: [String: String]) -> HelperLaunch {
     if let resources = bundledResourceURL() {
         let helperExecutable = resources
@@ -421,6 +477,10 @@ func resolvedHelperLaunch(environment: [String: String]) -> HelperLaunch {
 }
 
 func resolvedRepoRoot(environment: [String: String]) -> String {
+    if let explicit = processArgumentValue("--aside-repo-root") {
+        return explicit
+    }
+
     if let explicit = environment["ASIDE_REPO_ROOT"], !explicit.isEmpty {
         return explicit
     }
@@ -439,6 +499,10 @@ func resolvedRepoRoot(environment: [String: String]) -> String {
 }
 
 func resolvedPython(repoRoot: String, environment: [String: String]) -> String {
+    if let explicit = processArgumentValue("--aside-python") {
+        return explicit
+    }
+
     if let explicit = environment["ASIDE_PYTHON"], !explicit.isEmpty {
         return explicit
     }

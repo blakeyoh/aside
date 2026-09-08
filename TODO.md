@@ -1,58 +1,105 @@
-# Aside — TODO
+# Aside release work
 
-## v1 Completed (2026-03-22)
-- ~~Extract and restructure Hushed Hippo into src/aside/ package~~
-- ~~8-stage transcription pipeline~~
-- ~~12 voice commands with boundary detection~~
-- ~~Custom dictionary (hotwords + context priming + replacements)~~
-- ~~Number dictation mode~~
-- ~~Punctuation formatter~~
-- ~~Config migration chain~~
-- ~~Settings panel with dictionary UI~~
-- ~~77 unit tests at v1 baseline~~
-- ~~Privacy/architecture/voice-command docs~~
-- ~~Apache 2.0 license, pushed to github.com/blakeyoh/aside~~
+The native SwiftUI shell with its supervised local Python helper is the release
+product. The source-run customtkinter UI and standalone py2app bundle remain for
+compatibility and regression checks, but they do not define release readiness.
 
-## v1.0.1 Completed (2026-04-24)
-- ~~Voice-command sequencing and punctuation reliability~~
-- ~~Push-to-talk modifier-release stop handling~~
-- ~~Hotkey conflict rejection and capture cancel buttons~~
-- ~~Finder/Dock launch visibility and stale install-path fallback~~
-- ~~Transcribing menu-bar state~~
-- ~~97 passing unit tests~~
+Current scope and acceptance evidence are governed by
+[`docs/swiftui-release-audit-2026-09-08.md`](docs/swiftui-release-audit-2026-09-08.md).
+Complete work packages in order. A green protocol smoke or legacy workflow is
+never sufficient to call a native candidate release-ready.
 
-## Next: Manual Smoke Test
-- [ ] Run through `docs/smoke-test-plan.md` (6-phase Boeing FAI-style plan)
-- [ ] Fix any bugs discovered during smoke testing
-- [ ] Verify `setup.sh` works on a clean checkout on another machine
-- [ ] Verify developer mode: `.venv/bin/python3 -m aside` shows onboarding/settings and the menu-bar icon
-- [ ] Verify user mode: `scripts/build_app.sh release`, `scripts/package_dmg.sh`, DMG install, Settings/onboarding launch, menu-bar icon
+## R1: consolidate branches and release authority
 
-## Short-term
-- ~~**Aside-branded menu bar icon**~~ — done 2026-03-29 (aside-logo.png → AppIcon.icns)
-- ~~**SwiftUI menu-bar icon polish**~~ — done 2026-05-07 (idle state now uses an Aside-specific `A` menu-bar mark)
-- ~~**SwiftUI copy reduction pass**~~ — done 2026-05-07 (General now summarizes instead of repeating detailed panels)
-- ~~**SwiftUI tab/content dedupe**~~ — done 2026-05-07 (dedicated tabs own detailed controls)
-- ~~**SwiftUI dictionary UX upgrade**~~ — done 2026-05-07 (hotword/replacement guidance, empty states, term-limit handling)
-- ~~**SwiftUI voice-command audit**~~ — done 2026-05-07 (all 12 built-in commands represented)
-- ~~**SwiftUI About decision**~~ — done 2026-05-07 (expanded with concise product/privacy/engine/license content)
-- ~~**SwiftUI tutorial tab**~~ — done 2026-05-07 (added Practice tab with smoke prompts)
-- ~~**SwiftUI alignment polish**~~ — done 2026-05-07 (fixed left navigation row alignment and compact summary layout)
-- [ ] **Native release package** — build release packaging for the SwiftUI app, update versioning, and verify the new app icon appears in the Dock when installed/launched outside the terminal script.
-- [ ] **Install/release smoke tests in CI** — add GitHub workflow coverage for install and release package smoke tests.
-- [ ] **Homebrew formula** — `Formula/aside.rb` for `brew tap blakeyoh/aside && brew install aside`
-- ~~**Transcribing state in menu bar icon**~~ — done 2026-04-24 (blue processing badge while Whisper runs)
-- ~~**Hotkey capture cancel button**~~ — done 2026-04-24 (abort capture without pressing a combo)
-- ~~**Reliability pass**~~ — done 2026-04-24 (inline command rendering, punctuation dedupe, modifier-release stop, hotkey conflict rejection)
-- ~~**py2app DMG packaging path**~~ — done 2026-04-26 (release workflow scaffold, local DMG packaging, bundled base model)
+- [x] Merge `2026-may-dev` into a branch based on current `main`.
+- [x] Preserve main's `splitlines()` dictionary sanitization and development's
+  restrictive file/directory permissions.
+- [x] Preserve parser optimization, cached dictionary invalidation, hotkey
+  fixes, expanded tests, native bundle verification, and native workflows.
+- [x] Keep `parse_commands` removed.
+- [x] Preserve the June suggestion audit from PR #79.
+- [x] Make the native SwiftUI DMG the sole publish path; label legacy py2app
+  workflows and documents as compatibility history.
+- [x] Align documentation and bundle metadata on Apple Silicon and macOS 13+.
+- [ ] Merge the reviewed R1 integration PR into `main` after required CI passes.
 
-## Medium-term
-- [ ] **Code signing / Gatekeeper notarization** — requires Apple Developer account ($99/yr)
-- [ ] **Interactive tutorial webpage** — "training range" for practicing voice commands with feedback
-- [ ] **Transcription history log** — last N results with timestamps, searchable
-- [ ] **SwiftUI native frontend** — replace customtkinter; engine/ is already framework-agnostic
+## R2: installed identity and distribution
 
-## Long-term
-- [ ] Tier 2 voice commands: cap, all caps, tab, sleep/wake
-- [ ] Tier 3 voice commands: cursor movement, word selection, formatting
-- [ ] System tray notifications for transcription complete/errors
+- [ ] Build one candidate from the consolidated baseline and record its commit,
+  artifact SHA-256, macOS version, architecture, Python/Swift toolchains, and
+  model revision.
+- [ ] Configure Developer ID signing, hardened runtime, nested signing order,
+  and per-executable entitlements.
+- [ ] Submit a supported archive or DMG for notarization, staple it, and verify
+  Gatekeeper acceptance without bypassing quarantine.
+- [ ] Install the DMG copy into `/Applications` on another Mac and verify app,
+  helper, Dock, and permission identities plus update persistence.
+
+## R3: helper lifecycle and permission recovery
+
+- [ ] Add an asynchronous graceful-shutdown deadline with escalation and
+  serialize restarts until the prior helper's confirmed exit.
+- [ ] Reject stale stdout, stderr, timeout, and termination callbacks using a
+  process generation; reset framing and transient state between helpers.
+- [ ] Add a bounded protocol handshake and incompatible-helper recovery.
+- [ ] Enforce shared single-engine ownership across native and legacy entry
+  points.
+- [ ] Track process, model, permissions, and capture state separately; refresh
+  permissions after returning from System Settings.
+- [ ] Surface actionable audio/device failures and guarantee stream teardown
+  even when `stop()` fails.
+- [ ] Add Swift supervisor tests for protocol framing, malformed events,
+  handshake timeout, exit/restart races, stale callbacks, and shutdown states.
+
+## R4: trustworthy dictation and persistence
+
+- [ ] Report text-injection outcomes honestly and keep one bounded undelivered
+  result in memory for deliberate recovery.
+- [ ] Capture destination identity, pause delivery after uncertain focus
+  changes, and scope destructive commands to a valid insertion context.
+- [ ] Restrict runtime model loading to verified local assets; reject missing or
+  migrated unavailable models without network fallback.
+- [ ] Serialize model changes or discard stale load completions.
+- [ ] Validate, atomically save, then apply settings; never acknowledge a failed
+  persistence operation as saved.
+- [ ] Make dictionary edits lossless and conflict-aware, preserving comments,
+  unknown lines, and entries beyond the 50-term active cap.
+
+## R5: native interaction quality
+
+- [ ] Complete onboarding only after a verified first successful dictation in
+  the Practice target.
+- [ ] Derive readiness and recovery copy from real helper/model/permission/device
+  state; keep raw diagnostics behind disclosure.
+- [ ] Provide intentional recovery for the last undelivered in-memory result.
+- [ ] Add a privacy-safe local health check.
+- [ ] Add accessible recording/transcribing/error feedback, cancel/discard, and
+  a measured bounded-recording policy.
+- [ ] Verify keyboard traversal, hotkey capture/cancel, focus return, contrast,
+  VoiceOver labels, reduced motion, and minimum-window layout.
+
+## R6: qualify and control the release
+
+- [ ] Run Python 3.13 logic/protocol checks and Swift supervisor tests.
+- [ ] Run a no-network bundled-model audio fixture independent of user caches.
+- [ ] Verify every nested Mach-O dependency, architecture, loader path, symlink,
+  model manifest, version, helper, and icon.
+- [ ] Verify Developer ID signature, notarization, staple, quarantine, DMG
+  install/copy, and launch of the installed app.
+- [ ] Manually verify real microphone dictation and command behavior in TextEdit
+  and representative browser/native editors.
+- [ ] Exercise permission, microphone/device, sleep/wake, helper crash/restart,
+  duplicate launch, quit, focus switch, corrupt/read-only persistence, and
+  unavailable-model recovery.
+- [ ] Verify fresh install and v1.2.1 upgrade, UI states, accessibility, and
+  screenshots against one frozen candidate digest.
+- [ ] Run a bounded beta and rerun affected gates after every candidate fix.
+
+## Deferred until after the native release
+
+- Homebrew and additional distribution channels
+- New or custom command tiers
+- Cloud or LLM features
+- Persistent/searchable transcript history
+- Separate tutorial website
+- Native transcription-engine rewrite
