@@ -143,3 +143,130 @@ Defer Homebrew distribution, new command tiers, custom-command schemas, cloud/LL
 After consolidation, point automated maintenance at the canonical branch and native release goals. Require each proposed change to identify a reproducible user problem, check for an existing PR/fix, name the affected runtime surface, and provide relevant evidence. Pause repetitive legacy palette/parser campaigns. Archive superseded branches only after their unique work is preserved and their disposition is recorded.
 
 The first implementation should be R1's integration PR. The first major proof should be R2's installed identity and signing rehearsal. That sequence removes uncertainty before investing in more visual polish.
+
+## Implementation handoff for coding agents
+
+This section is an execution contract for the work above. Snippets describe patterns to adapt and test; they are not reviewed drop-in implementations. Re-read the current code before editing: the audit identifies historical heads, and later PRs may already fix a finding. Keep implementation bounded to the assigned R-number and its dependencies.
+
+### Start every task with these checks
+
+1. Read the current `AGENTS.md`, this audit, and `docs/swiftui-migration-goal.md`. Read the technical-spike document for historical evidence, but do not treat its old “passed” declaration as proof of a new binary.
+2. Run `git status --short`, fetch current refs, and record the base SHA. Preserve unrelated working changes. After R1, start from the consolidated baseline; do not branch anew from the old May snapshot.
+3. Trace the real native call path before making a fix: SwiftUI view → `HelperSupervisor.send` → `AsideStdioHelper.handle_command` → shared engine/config code → emitted event → supervisor → view. A change only in `src/aside/ui/` usually does not change the SwiftUI app.
+4. State the failing user behavior, proposed scope, and test that would distinguish broken from fixed. Prefer a minimal failing regression case for runtime changes. Avoid mechanical tests that merely restate a new helper's implementation.
+5. Read the applicable test fixtures before adding mocks. `tests/conftest.py` deliberately replaces unavailable native libraries. A mock passing is evidence about logic, never about macOS permissions or event delivery.
+
+| Task | Read first | Primary regression evidence |
+|---|---|---|
+| R1 | Both branches' diffs; `helper.py`, `config.py`, `commands/parser.py`, workflows | Separator sanitization and permissions both survive; parser behavior stays intact; supported-runtime suite passes. |
+| R2 | `setup_py2app_helper.py`, both SwiftUI build/verify scripts, `Info.plist`, entitlements, release/rehearsal workflows | Installed signed app on a clean Mac; nested helper identity and runtime dependencies verified. |
+| R3 | `HelperSupervisor.swift`, `helper.py`, `engine/hotkeys.py`, `engine/audio.py`, `permissions.py`, legacy lock in `__main__.py` | Real process fixture for restart/exit plus deterministic state tests; manual grant/revoke/recovery. |
+| R4 | `engine/transcriber.py`, `injector.py`, `commands/actions.py`, `config.py`, `dictionary/hotwords.py`, helper dictionary handlers | Failed/partial delivery, focus changes, failed writes, Unicode separators, overflow dictionary, overlapping model loads. |
+| R5 | `AsideShellApp.swift`, supervisor published state, design assets | Native screenshots across states; keyboard/focus/VoiceOver behavior on Mac. |
+| R6 | All active native workflows and smoke scripts, `tests/test_swiftui_helper_subprocess.py` | Separate protocol, real-model, installed-app, and manual gate results tied to a SHA/artifact. |
+
+### R1 merge procedure: preserve both sets of fixes
+
+Use a fresh integration branch from current main and merge the development branch into it. Inspect the merge result even when Git reports no textual conflict. Never resolve a whole file with `--ours` or `--theirs` merely to make the merge pass.
+
+Required semantic checks:
+
+- Helper and retained legacy dictionary entry paths normalize every separator handled by `str.splitlines()`, including Unicode line/paragraph separators and control separators. Do not reduce normalization to CR/LF only.
+- Keep development's private config directory/file modes and dictionary-write protections. Follow-on atomic-write work must improve these guarantees rather than delete them.
+- Keep cached dictionary invalidation, optimized parser append behavior, hotkey fixes, expanded tests, native bundle verifier, and native release workflow.
+- Do not resurrect the removed `parse_commands` wrapper to satisfy a stale PR. Update obsolete callers/tests only where the current public contract justifies it.
+- Preserve #79's historical audit document without importing that branch's unrelated tree state.
+- If a conflict reveals two different intended behaviors, document the choice with a regression case. Do not silently infer correctness from which commit is newer.
+
+### Threading and lifecycle rules
+
+- The Quartz event-tap callback must remain minimal: read event fields, enqueue raw values, return. No locks, file I/O, UI work, model work, or logging in the hot callback.
+- SwiftUI observable state belongs on `@MainActor`. Pipe reads/writes and waiting for a child must not block that actor. Do not put `waitUntilExit()` or sleep on the main actor.
+- `AudioCapture.stop()` blocks. Run teardown off UI/event-polling paths. Use independent cleanup attempts so a `stop()` exception cannot skip `close()`.
+- A shutdown request is not an exit acknowledgement. Mark shutdown intent, request graceful shutdown, wait asynchronously for the matching process exit, then escalate after a bounded deadline. Serialize repeated restart requests into at most one successor.
+- Tag **all** stdout, stderr, termination, and timeout callbacks with a process generation. Checking only termination callbacks is insufficient. Reset framing buffers between processes. Ignore every stale generation before mutating state or clearing handles.
+- On actual app quit, ensure the lifecycle coordinator has time to complete cleanup; sending shutdown immediately before `NSApplication.terminate` does not prove the child exited.
+- Shared engine locking must cover legacy and native entry points. Hold an OS-backed lock for the lifetime of the engine; a PID file or “file exists” check is insufficient. Verify it is released after crashes.
+
+Illustrative callback guard, to be applied within the existing actor boundary:
+
+```swift
+// Capture this session's token when installing the callback.
+let callbackGeneration = generation
+// Later, on MainActor, before ANY state mutation:
+guard callbackGeneration == self.generation else { return }
+```
+
+The token does not itself solve lifecycle sequencing, pipe ordering, retain cycles, or termination. Add a test where helper A exits after helper B has become ready, then assert B remains running and ready. Also test A's delayed stdout and timeout callbacks.
+
+### Separate engine health from operation results
+
+Do not represent every failure as the single global `.error` state. An invalid dictionary term should produce an inline rejected-edit result while a healthy dictation engine stays usable. A lost microphone or dead helper must change dictation availability.
+
+Use explicit facts for process/handshake readiness, model readiness, required permissions, capture/transcription activity, and shutdown intent. Derive whether recording is allowed from those facts. Test event reordering: a model-ready event arriving after a permission failure must not enable recording.
+
+For configuration/dictionary commands, introduce request IDs and structured success/failure responses where needed. Clear a field or display “Saved” only after the matching successful response. A stale acknowledgement must not overwrite a newer edit. If changing protocol compatibility, update shell/helper versions and test the incompatible-pair failure path.
+
+### Persist safely without damaging user files
+
+Keep `~/.aside` and existing key names compatible. Do not move user files or change the dictionary format as a side effect of fixing writes. Validate JSON shape as well as syntax: valid JSON can be an array, null, or contain wrongly typed settings. Preserve unknown config keys when updating known ones.
+
+Configuration transaction pattern:
+
+```python
+candidate = deepcopy(current_config)
+apply_validated_change(candidate, request)
+if not save_config(candidate):
+    emit_save_failure(request_id)
+    return
+current_config = candidate
+apply_runtime_change(candidate)
+emit_saved(request_id, candidate)
+```
+
+If applying a persisted setting to the runtime fails, report that distinction explicitly and offer recovery; do not claim the model/device change is active. Decide and test whether to roll back the persisted setting or retain it as pending.
+
+For atomic writes: create a temporary file **in the destination directory**, create it privately, write/flush/fsync it, then `os.replace` it. Clean up temporary files on failure. Account for parent-directory durability where required. Test failure before replacement and assert the original bytes remain intact. Never write secrets/transcripts into a temporary file with permissive permissions and chmod it only afterward.
+
+Atomic replacement prevents torn writes; it does not prevent overwriting someone else's edits. Dictionary operations need a lossless source representation and a version/content check or equivalent concurrency policy. Keep comments, unknown lines, and overflow terms. Reject/reload after a conflicting external edit. Define duplicate and delimiter behavior once in shared code, then test through the helper command path.
+
+### Text delivery: avoid fixes that make data loss worse
+
+- Keep normal text injection clipboard-free. The existing explicit spoken “copy” command invokes Cmd+C; this is separate from using the clipboard as an implementation shortcut for dictation.
+- Never automatically retry a partially delivered transcript. That can duplicate text. Preserve the result in memory and require an intentional recovery action.
+- Process ID alone is not destination identity: focus can move between fields in the same app. Use the strongest practical app/window/focused-element evidence, and treat unavailable or changed identity as uncertain. Do not claim a perfect focus lock; focus can still change between checking and posting events.
+- Do not steal focus by bringing Aside's settings window forward at recording completion. Avoid automatic target reactivation and destructive commands when destination identity is uncertain.
+- Do not equate Python string length, UTF-16 code units, grapheme clusters, and backspace count. Inspect the Quartz Unicode API contract before changing injection. Test non-BMP characters, composed/decomposed accents, and multiline text on a Mac. “Delete that” must not assume an arbitrary character count safely reverses any insertion.
+- Treat transcription text as private. Keep it out of default diagnostic exports, CI logs, screenshots, and committed fixtures. Use synthetic fixture text. Retention in memory must be bounded and cleared on quit/dismissal.
+
+### Offline and model-loading traps
+
+Do not “fix” a missing model by downloading one at runtime, adding HTTP, or silently falling back to another model. The first-release contract is local assets only. Missing, corrupt, unsupported, and unavailable model choices need distinct recoverable outcomes.
+
+Enforce this at the loader as well as the picker: migrated configs and direct helper commands bypass UI restrictions. Verify the actual dependency API before selecting its offline options. A global offline environment flag is useful defense in depth, not a substitute for selecting validated local paths and testing blocked network access.
+
+Model reloads need a generation or serialized queue, just like process restarts. Test A loading slowly, B loading quickly, then A completing: B must remain selected and active. Freeze relevant settings for an in-flight transcription or define an explicit cancellation boundary; avoid mixing settings from different sessions.
+
+### Release and test evidence agents must not overstate
+
+- Never broaden smoke-test success to include a timeout, early exit, missing log marker, or missing artifact merely to turn CI green. Record and fix the underlying failure.
+- Protocol smoke uses fake dependencies by design. A real-engine gate must assert smoke flags are absent and use the packaged engine/model. A network-disabled run must start without a populated user model cache.
+- Verify the copy installed from the DMG. Launching `dist-swiftui/Aside.app` on the build machine can hide missing dependencies and permission-identity problems.
+- Do not remove quarantine or tell testers to bypass Gatekeeper as evidence that distribution works. Developer launch instructions can remain separate from public installation verification.
+- Do not label an old workflow run as validation for new code. Record commit SHA, artifact digest, OS/architecture, runtime/toolchain, commands, and result.
+- A Linux-only agent should implement portable logic/tests and prepare exact Mac verification steps. Mark native gates **NOT RUN** until real evidence exists. This does not justify abandoning the portable work or claiming release readiness.
+- Avoid unrelated formatting sweeps, dependency upgrades, architectural rewrites, or deleting tests to unblock the PR. Expand testing only for the affected behavior and required release gates.
+
+Every implementation PR must include:
+
+```text
+Work package and base SHA:
+User-visible failure addressed:
+Behavior and compatibility decisions:
+Regression evidence (what failed before, what passes now):
+Automated checks (command, environment, result):
+Native/manual checks (PASS / FAIL / NOT RUN, evidence):
+Known limitations and remaining release gates:
+```
+
+“Done” means the assigned behavior is implemented and its evidence is accurate. “Release ready” additionally requires every applicable R6 gate against the final candidate. Agents must not merge, tag, publish, or close other work simply because a local test suite passes; follow the user's authorized task scope.
