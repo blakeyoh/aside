@@ -10,7 +10,6 @@ Threading model:
   Background "model-load" / "transcribe": Whisper model + pipeline
 """
 
-import fcntl
 import logging
 import queue
 import sys
@@ -20,7 +19,6 @@ import customtkinter as ctk
 
 from aside import __version__
 from aside.config import (
-    CONFIG_DIR,
     DICTIONARY_FILE,
     load_config,
     save_config,
@@ -30,6 +28,7 @@ from aside.dictionary.hotwords import parse_dictionary, MAX_TERMS
 from aside.engine.audio import AudioCapture
 from aside.engine.hotkeys import HotkeyManager, hotkeys_equal, parse_hotkey
 from aside.engine.transcriber import Transcriber
+from aside.instance_lock import acquire_engine_lock, release_engine_lock
 from aside.resources import resource_path
 from aside.ui.menubar import MenuBar, hotkey_display, play_sound
 from aside.ui.onboarding import OnboardingWindow
@@ -46,32 +45,6 @@ from aside.ui.theme import BG, FG, FG2, FONT, POLL_MS, STATUS_MAP
 logger = logging.getLogger(__name__)
 
 ICON_PATH = resource_path("aside-logo.png")
-LOCK_FILE = CONFIG_DIR / "aside.lock"
-
-
-def _acquire_lock():
-    """Single-instance lock via fcntl.flock(). Returns lock fd or None."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    try:
-        CONFIG_DIR.chmod(0o700)
-    except OSError as exc:
-        logger.warning(f"Could not enforce 0o700 on {CONFIG_DIR}: {exc}")
-    try:
-        fd = open(LOCK_FILE, "w")
-    except OSError:
-        return None
-    try:
-        LOCK_FILE.chmod(0o600)
-    except OSError as exc:
-        logger.warning(f"Could not enforce 0o600 on {LOCK_FILE}: {exc}")
-    try:
-        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return fd
-    except OSError:
-        fd.close()
-        return None
-
-
 # ── customtkinter appearance must be set BEFORE CTk.__init__() ───────────
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("dark-blue")
@@ -82,7 +55,7 @@ class App(ctk.CTk):
 
     def __init__(self):
         # Single-instance guard
-        self._lock_fd = _acquire_lock()
+        self._lock_fd = acquire_engine_lock()
         if self._lock_fd is None:
             try:
                 from AppKit import NSAlert
@@ -652,10 +625,6 @@ class App(ctk.CTk):
             self._hotkeys.shutdown()
         except Exception:
             pass
-        try:
-            if self._lock_fd:
-                fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
-                self._lock_fd.close()
-        except Exception:
-            pass
+        release_engine_lock(self._lock_fd)
+        self._lock_fd = None
         self.quit()

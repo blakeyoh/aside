@@ -139,7 +139,7 @@ File: `~/.aside/dictionary.txt`. 50-term cap (hotwords + replacements combined).
 
 ```bash
 .venv/bin/python3 -m pytest tests/ -v
-swift build --package-path native/AsideShell
+swift test --package-path native/AsideShell
 scripts/smoke_swiftui_launch.sh
 ```
 
@@ -158,6 +158,9 @@ Protocol smoke uses fake audio/hotkeys/transcription and does not prove working 
 
 ### Push-to-talk must stop on modifier release
 Push-to-talk hotkeys cannot rely on `kCGEventKeyUp` alone. On macOS, releasing `Ctrl` or `Alt` before the trigger key often strips the modifier flag from the later key-up event. Preserve `kCGEventFlagsChanged` handling so recording stops when the modifier is released, otherwise push-to-talk can remain stuck recording until the shortcut is pressed again.
+
+### Helper lifecycle is generation-scoped
+The shell must accept helper events only after a matching protocol-version handshake and only from the active process generation. Restart waits for confirmed exit; shutdown sends the protocol command, waits for the grace deadline, then escalates. Do not restore fixed restart delays or immediate termination. Native and legacy entry points must acquire the shared engine lock before creating hotkeys, audio, or injection state.
 
 ### Push-to-talk and toggle hotkeys must be distinct
 Reject configurations where the push-to-talk hotkey and toggle hotkey are identical. The push-to-talk branch wins first in the event handler, which makes toggle recording unreachable and silently breaks hands-free mode.

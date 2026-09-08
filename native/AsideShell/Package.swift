@@ -14,6 +14,11 @@ let package = Package(
         .executableTarget(
             name: "AsideShell",
             path: "Sources/AsideShell"
+        ),
+        .testTarget(
+            name: "AsideShellTests",
+            dependencies: ["AsideShell"],
+            path: "Tests/AsideShellTests"
         )
     ]
 )

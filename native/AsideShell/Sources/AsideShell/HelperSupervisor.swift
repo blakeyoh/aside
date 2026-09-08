@@ -2,6 +2,15 @@ import AppKit
 import Foundation
 import SwiftUI
 
+typealias HelperProcessFactory = @MainActor (HelperLaunch, [String: String]) -> HelperProcessDriving
+typealias HelperScheduler = (TimeInterval, @escaping @MainActor () -> Void) -> Void
+
+enum HelperCaptureState: String, Equatable {
+    case idle
+    case recording
+    case transcribing
+}
+
 @MainActor
 final class HelperSupervisor: ObservableObject {
     @Published var state: HelperState = .stopped
@@ -12,19 +21,59 @@ final class HelperSupervisor: ObservableObject {
     @Published var captureTarget: String?
     @Published var eventLog: [String] = []
     @Published var isRunning = false
+    @Published private(set) var processPhase: HelperProcessPhase = .stopped
+    @Published private(set) var modelReady = false
+    @Published private(set) var permissionsReady = false
+    @Published private(set) var captureState: HelperCaptureState = .idle
 
-    private var process: Process?
-    private var stdinPipe: Pipe?
-    private var stdoutRemainder = Data()
-    private var stderrRemainder = Data()
+    private var process: HelperProcessDriving?
+    private var lifecycle = HelperLifecycle()
+    private var stdoutFrames = LineFrameDecoder()
+    private var stderrFrames = LineFrameDecoder()
     private var didScheduleProtocolSmokeExit = false
+    private var shutdownCompletions: [() -> Void] = []
+
+    private let processFactory: HelperProcessFactory
+    private let scheduler: HelperScheduler
+    private let launchResolver: ([String: String]) -> HelperLaunch
+    private let environmentProvider: () -> [String: String]
+    private let executableCheck: (String) -> Bool
+    private let protocolSmokeMode: () -> Bool
+
+    init(
+        processFactory: @escaping HelperProcessFactory = { launch, environment in
+            FoundationHelperProcess(launch: launch, environment: environment)
+        },
+        scheduler: @escaping HelperScheduler = { delay, action in
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                Task { @MainActor in
+                    action()
+                }
+            }
+        },
+        launchResolver: @escaping ([String: String]) -> HelperLaunch = resolvedHelperLaunch,
+        environmentProvider: @escaping () -> [String: String] = {
+            ProcessInfo.processInfo.environment
+        },
+        executableCheck: @escaping (String) -> Bool = {
+            FileManager.default.isExecutableFile(atPath: $0)
+        },
+        protocolSmokeMode: @escaping () -> Bool = swiftProtocolSmokeMode
+    ) {
+        self.processFactory = processFactory
+        self.scheduler = scheduler
+        self.launchResolver = launchResolver
+        self.environmentProvider = environmentProvider
+        self.executableCheck = executableCheck
+        self.protocolSmokeMode = protocolSmokeMode
+    }
 
     private var isProtocolSmokeMode: Bool {
-        swiftProtocolSmokeMode()
+        protocolSmokeMode()
     }
 
     var helperDescription: String {
-        let launch = resolvedHelperLaunch(environment: ProcessInfo.processInfo.environment)
+        let launch = launchResolver(environmentProvider())
         return ([launch.executable.path] + launch.arguments).joined(separator: " ")
     }
 
@@ -33,26 +82,23 @@ final class HelperSupervisor: ObservableObject {
             return
         }
 
-        let launch = resolvedHelperLaunch(environment: ProcessInfo.processInfo.environment)
+        let environment = environmentProvider()
+        let launch = launchResolver(environment)
         let executablePath = launch.executable.path
+        let generation = lifecycle.beginStart()
+        syncProcessPhase()
+        resetTransientState()
 
-        guard FileManager.default.isExecutableFile(atPath: executablePath) else {
+        guard executableCheck(executablePath) else {
+            _ = lifecycle.didFailToLaunch(generation: generation)
+            syncProcessPhase()
             state = .error
             errorMessage = "Helper is not executable at \(executablePath). Set ASIDE_PYTHON or run from the repo root after setup.sh."
             appendLog("launch failed: \(executablePath)")
             return
         }
 
-        let process = Process()
-        let stdinPipe = Pipe()
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-
-        process.executableURL = launch.executable
-        process.arguments = launch.arguments
-        process.currentDirectoryURL = launch.workingDirectory
-
-        var childEnvironment = ProcessInfo.processInfo.environment
+        var childEnvironment = environment
         childEnvironment["PYTHONUNBUFFERED"] = "1"
         if isProtocolSmokeMode {
             childEnvironment["ASIDE_HELPER_PROTOCOL_SMOKE"] = "1"
@@ -64,88 +110,108 @@ final class HelperSupervisor: ObservableObject {
                 childEnvironment["PYTHONPATH"] = pythonPath
             }
         }
-        process.environment = childEnvironment
-
-        process.standardInput = stdinPipe
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-
-        stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else {
-                return
-            }
-            guard let supervisor = self else {
-                return
-            }
-            Task { @MainActor [supervisor, data] in
-                supervisor.consumeStdout(data)
+        let process = processFactory(launch, childEnvironment)
+        self.process = process
+        process.stdoutHandler = { [weak self] data in
+            Task { @MainActor [weak self] in
+                self?.consumeStdout(data, generation: generation)
             }
         }
-
-        stderrPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            guard !data.isEmpty else {
-                return
-            }
-            guard let supervisor = self else {
-                return
-            }
-            Task { @MainActor [supervisor, data] in
-                supervisor.consumeStderr(data)
+        process.stderrHandler = { [weak self] data in
+            Task { @MainActor [weak self] in
+                self?.consumeStderr(data, generation: generation)
             }
         }
-
-        process.terminationHandler = { [weak self] finishedProcess in
-            let status = finishedProcess.terminationStatus
-            guard let supervisor = self else {
-                return
-            }
-            Task { @MainActor [supervisor, status] in
-                supervisor.handleTermination(status: status)
+        process.exitHandler = { [weak self] status in
+            Task { @MainActor [weak self] in
+                self?.handleTermination(status: status, generation: generation)
             }
         }
 
         do {
             try process.run()
-            self.process = process
-            self.stdinPipe = stdinPipe
+            guard lifecycle.didLaunch(generation: generation) else {
+                process.forceTermination()
+                return
+            }
+            syncProcessPhase()
             state = .loading
             errorMessage = nil
             isRunning = true
             appendLog("launched helper pid \(process.processIdentifier)")
+            scheduler(3.0) { [weak self] in
+                self?.handleHandshakeTimeout(generation: generation)
+            }
         } catch {
+            process.invalidateHandlers()
+            self.process = nil
+            _ = lifecycle.didFailToLaunch(generation: generation)
+            syncProcessPhase()
             state = .error
             errorMessage = "Could not launch helper: \(error.localizedDescription)"
             appendLog("launch error: \(error.localizedDescription)")
+            finishShutdownCompletions()
         }
     }
 
     func restartHelper() {
-        shutdownHelper()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            self.startHelper()
-        }
-    }
-
-    func shutdownHelper() {
-        guard let process else {
+        guard process != nil else {
+            startHelper()
             return
         }
-        send(command: "shutdown")
-        stdinPipe?.fileHandleForWriting.closeFile()
-        process.terminate()
-        cleanupPipes()
-        self.process = nil
-        self.stdinPipe = nil
-        isRunning = false
-        state = .stopped
+        beginStop(restart: true)
+    }
+
+    func shutdownHelper(completion: (() -> Void)? = nil) {
+        if let completion {
+            shutdownCompletions.append(completion)
+        }
+        guard process != nil else {
+            if state != .error {
+                state = .stopped
+            }
+            finishShutdownCompletions()
+            return
+        }
+        beginStop(restart: false)
+    }
+
+    func refreshPermissions() {
+        guard lifecycle.handshakeComplete else {
+            appendLog("permission refresh deferred until helper handshake")
+            return
+        }
+        send(command: "getPermissions")
+    }
+
+    func prepareForSleep() {
+        guard lifecycle.handshakeComplete else {
+            return
+        }
+        send(command: "prepareForSleep")
+    }
+
+    private func beginStop(restart: Bool) {
+        guard lifecycle.requestStop(restart: restart) else {
+            return
+        }
+        syncProcessPhase()
         appendLog("shutdown requested")
+        send(command: "shutdown")
+        process?.closeInput()
+        let generation = lifecycle.generation
+        scheduler(2.0) { [weak self] in
+            self?.handleGracefulStopTimeout(generation: generation)
+        }
     }
 
     func send(command: String, payload: [String: Any] = [:]) {
-        guard let stdinPipe else {
+        guard let process else {
             appendLog("command skipped, helper is not running: \(command)")
+            return
+        }
+        guard lifecycle.handshakeComplete || command == "shutdown" else {
+            appendLog("command deferred until helper handshake: \(command)")
             return
         }
         var message: [String: Any] = ["command": command]
@@ -153,39 +219,36 @@ final class HelperSupervisor: ObservableObject {
             message[key] = value
         }
         do {
-            let data = try JSONSerialization.data(withJSONObject: message)
-            stdinPipe.fileHandleForWriting.write(data)
-            stdinPipe.fileHandleForWriting.write(Data("\n".utf8))
+            var data = try JSONSerialization.data(withJSONObject: message)
+            data.append(Data("\n".utf8))
+            try process.send(data)
             appendLog("sent \(command)")
         } catch {
             appendLog("send failed: \(error.localizedDescription)")
         }
     }
 
-    private func consumeStdout(_ data: Data) {
-        stdoutRemainder.append(data)
-        while let newline = stdoutRemainder.firstIndex(of: 10) {
-            let lineData = stdoutRemainder[..<newline]
-            stdoutRemainder.removeSubrange(...newline)
-            guard !lineData.isEmpty else {
-                continue
-            }
-            handleHelperLine(Data(lineData))
+    private func consumeStdout(_ data: Data, generation: Int) {
+        guard generation == lifecycle.generation else {
+            return
+        }
+        for frame in stdoutFrames.append(data) {
+            handleHelperLine(frame, generation: generation)
         }
     }
 
-    private func consumeStderr(_ data: Data) {
-        stderrRemainder.append(data)
-        while let newline = stderrRemainder.firstIndex(of: 10) {
-            let lineData = stderrRemainder[..<newline]
-            stderrRemainder.removeSubrange(...newline)
-            if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+    private func consumeStderr(_ data: Data, generation: Int) {
+        guard generation == lifecycle.generation else {
+            return
+        }
+        for frame in stderrFrames.append(data) {
+            if let line = String(data: frame, encoding: .utf8), !line.isEmpty {
                 appendLog("stderr: \(line)")
             }
         }
     }
 
-    private func handleHelperLine(_ data: Data) {
+    private func handleHelperLine(_ data: Data, generation: Int) {
         guard
             let object = try? JSONSerialization.jsonObject(with: data),
             let event = object as? [String: Any],
@@ -195,16 +258,43 @@ final class HelperSupervisor: ObservableObject {
             return
         }
 
-        switch type {
-        case "hello":
+        if type == "hello" {
+            let version = event["protocolVersion"] as? Int
+            if lifecycle.handshakeComplete,
+               version == supportedHelperProtocolVersion
+            {
+                appendLog("duplicate helper hello ignored")
+                return
+            }
+            guard lifecycle.acceptHello(generation: generation, version: version) else {
+                syncProcessPhase()
+                state = .error
+                errorMessage = "The helper protocol is incompatible. Reinstall or update Aside, then restart the helper."
+                appendLog("incompatible helper protocol \(version.map(String.init) ?? "missing")")
+                beginStop(restart: false)
+                return
+            }
+            syncProcessPhase()
             appendLog("helper protocol ready")
+            return
+        }
+
+        guard lifecycle.handshakeComplete else {
+            appendLog("ignored \(type) before helper handshake")
+            return
+        }
+
+        switch type {
         case "status":
             if let rawState = event["state"] as? String {
-                applyStatus(rawState, message: event["message"] as? String)
+                applyStatus(rawState, event: event)
             }
         case "permissions":
             if let values = event["permissions"] as? [String: String] {
                 permissions = values
+                permissionsReady = !values.isEmpty && values.values.allSatisfy {
+                    $0 == "granted"
+                }
                 appendLog("permissions updated")
             }
         case "dictionary":
@@ -238,33 +328,100 @@ final class HelperSupervisor: ObservableObject {
         }
     }
 
-    private func applyStatus(_ rawState: String, message: String?) {
+    private func applyStatus(_ rawState: String, event: [String: Any]) {
+        if let ready = event["modelReady"] as? Bool {
+            modelReady = ready
+        }
+        if let ready = event["permissionsReady"] as? Bool {
+            permissionsReady = ready
+        }
+        if let rawCapture = event["captureState"] as? String {
+            captureState = HelperCaptureState(rawValue: rawCapture) ?? .idle
+        }
         state = HelperState(rawValue: rawState) ?? .error
-        errorMessage = state == .error ? message : nil
+        errorMessage = state == .error ? event["message"] as? String : nil
         appendLog("status \(rawState)")
         if rawState == "ready" {
             scheduleProtocolSmokeExit()
         }
     }
 
-    private func handleTermination(status: Int32) {
-        cleanupPipes()
+    private func handleHandshakeTimeout(generation: Int) {
+        guard lifecycle.handshakeExpired(generation: generation) else {
+            return
+        }
+        syncProcessPhase()
+        state = .error
+        errorMessage = "The helper did not complete its startup handshake. Restart the helper or reinstall Aside."
+        appendLog("helper handshake timed out")
+        beginStop(restart: false)
+    }
+
+    private func handleGracefulStopTimeout(generation: Int) {
+        guard lifecycle.gracefulStopExpired(generation: generation) == .terminate else {
+            return
+        }
+        syncProcessPhase()
+        appendLog("helper did not exit gracefully; sending terminate")
+        process?.requestTermination()
+        scheduler(1.0) { [weak self] in
+            self?.handleTerminationTimeout(generation: generation)
+        }
+    }
+
+    private func handleTerminationTimeout(generation: Int) {
+        guard lifecycle.terminationExpired(generation: generation) == .forceKill else {
+            return
+        }
+        appendLog("helper ignored terminate; forcing exit")
+        process?.forceTermination()
+    }
+
+    private func handleTermination(status: Int32, generation: Int) {
+        let expected = lifecycle.phase == .stopping || lifecycle.phase == .terminating
+        guard let shouldRestart = lifecycle.didExit(generation: generation) else {
+            return
+        }
+        process?.invalidateHandlers()
         process = nil
-        stdinPipe = nil
         isRunning = false
-        if state != .error {
+        captureTarget = nil
+        captureState = .idle
+        syncProcessPhase()
+        if !expected, state != .error {
+            state = .error
+            errorMessage = "The helper exited unexpectedly (status \(status)). Restart the helper to recover."
+        } else if state != .error {
             state = .stopped
         }
         appendLog("helper exited \(status)")
+        if shouldRestart {
+            startHelper()
+        } else {
+            finishShutdownCompletions()
+        }
     }
 
-    private func cleanupPipes() {
-        process?.terminationHandler = nil
-        if let stdout = process?.standardOutput as? Pipe {
-            stdout.fileHandleForReading.readabilityHandler = nil
-        }
-        if let stderr = process?.standardError as? Pipe {
-            stderr.fileHandleForReading.readabilityHandler = nil
+    private func resetTransientState() {
+        stdoutFrames.reset()
+        stderrFrames.reset()
+        permissions = [:]
+        permissionsReady = false
+        modelReady = false
+        captureTarget = nil
+        captureState = .idle
+        didScheduleProtocolSmokeExit = false
+    }
+
+    private func syncProcessPhase() {
+        processPhase = lifecycle.phase
+    }
+
+    private func finishShutdownCompletions() {
+        let completions = shutdownCompletions
+        shutdownCompletions.removeAll()
+        for completion in completions {
+            completion()
         }
     }
 
@@ -300,8 +457,7 @@ final class HelperSupervisor: ObservableObject {
         }
         didScheduleProtocolSmokeExit = true
         appendLog("protocol smoke passed: helper ready")
-        send(command: "shutdown")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        shutdownHelper {
             NSApplication.shared.terminate(nil)
         }
     }
