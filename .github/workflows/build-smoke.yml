@@ -49,6 +49,12 @@ jobs:
           source .venv/bin/activate
           python -m pytest tests/ -v
 
+      - name: Run Swift helper lifecycle tests
+        run: |
+          swift test \
+            --package-path native/AsideShell \
+            --scratch-path native/AsideShell/.build
+
       - name: Smoke-launch SwiftUI shell from source checkout
         run: |
           source .venv/bin/activate
