@@ -206,6 +206,7 @@ class HotkeyManager:
         self._tap_loop = None
         self._event_queue: queue.Queue = queue.Queue()
         self._on_event = on_event or (lambda *_: None)
+        self._on_accessibility_error = on_accessibility_error
         self._capture_callback: Callable[[dict], None] | None = None
 
         if QUARTZ_AVAILABLE:
@@ -307,6 +308,18 @@ class HotkeyManager:
 
     def stop_capture(self) -> None:
         self._capture_callback = None
+
+    def refresh_permissions(self) -> bool:
+        """Re-enable or rebuild the event tap after permissions change."""
+        if not QUARTZ_AVAILABLE or CGEventTapEnable is None:
+            if self._on_accessibility_error:
+                self._on_accessibility_error()
+            return False
+        if self._tap is not None:
+            CGEventTapEnable(self._tap, True)
+            return True
+        self._install_event_tap(self._on_accessibility_error)
+        return self._tap is not None
 
     def update_hotkey(self, config: dict) -> None:
         mod_mask, keycode = parse_hotkey(config)

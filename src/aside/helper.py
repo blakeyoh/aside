@@ -17,6 +17,7 @@ import threading
 import time
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, TextIO
 
 from aside.config import (
@@ -37,6 +38,7 @@ from aside.engine.hotkeys import (
     parse_hotkey,
 )
 from aside.engine.transcriber import Transcriber
+from aside.instance_lock import acquire_engine_lock, release_engine_lock
 from aside.permissions import (
     PermissionStatus,
     check_accessibility,
@@ -114,6 +116,7 @@ class HelperDependencies:
     config_saver: Callable[[dict[str, Any]], bool] = save_config
     permission_snapshot_factory: Callable[[], dict[str, str]] = permission_snapshot
     audio_warmup: Callable[[], None] = AudioCapture.warmup
+    enforce_permissions: bool = True
 
 
 class ProtocolSmokeTranscriber:
@@ -167,6 +170,9 @@ class ProtocolSmokeHotkeys:
     def update_toggle_hotkey(self, config: dict | None) -> None:
         pass
 
+    def refresh_permissions(self) -> bool:
+        return True
+
     def shutdown(self) -> None:
         pass
 
@@ -174,8 +180,13 @@ class ProtocolSmokeHotkeys:
 class ProtocolSmokeAudio:
     """No-op audio capture used only by explicit protocol smoke tests."""
 
-    def __init__(self, on_mic_denied: Callable[[], None] | None = None) -> None:
+    def __init__(
+        self,
+        on_mic_denied: Callable[[], None] | None = None,
+        on_error: Callable[[str], None] | None = None,
+    ) -> None:
         self._on_mic_denied = on_mic_denied
+        self._on_error = on_error
 
     def start(self) -> bool:
         return False
@@ -195,6 +206,7 @@ def dependencies_from_environment() -> HelperDependencies:
             config_saver=lambda _: True,
             permission_snapshot_factory=protocol_smoke_permission_snapshot,
             audio_warmup=no_audio_warmup,
+            enforce_permissions=False,
         )
     return HelperDependencies()
 
@@ -216,6 +228,11 @@ class AsideStdioHelper:
         self._stop = threading.Event()
         self._write_lock = threading.Lock()
         self._state = STATUS_LOADING
+        self._model_ready = False
+        self._model_error: str | None = None
+        self._permission_error: str | None = None
+        self._audio_error: str | None = None
+        self._permission_statuses: dict[str, str] = {}
         self._toggle_active = False
         self._components_started = False
 
@@ -227,7 +244,10 @@ class AsideStdioHelper:
             self.cfg["toggle_hotkey"] = None
             self.dependencies.config_saver(self.cfg)
 
-        self._audio = self.dependencies.audio_factory(on_mic_denied=self._on_mic_denied)
+        self._audio = self.dependencies.audio_factory(
+            on_mic_denied=self._on_mic_denied,
+            on_error=self._on_audio_error,
+        )
         self._transcriber = self.dependencies.transcriber_factory(
             model_size=self.cfg["model_size"],
             language=self.cfg.get("language"),
@@ -325,6 +345,7 @@ class AsideStdioHelper:
         elif name == "stopRecording":
             self._stop_recording()
         elif name == "getPermissions":
+            self._hotkeys.refresh_permissions()
             self.emit_permissions()
         elif name == "requestPermission":
             pane = str(command.get("permission", ""))
@@ -364,12 +385,23 @@ class AsideStdioHelper:
             self.emit({"type": "error", "message": f"unknown command: {name}"})
 
     def emit_permissions(self) -> None:
+        statuses = self.dependencies.permission_snapshot_factory()
+        self._permission_statuses = statuses
+        if self.dependencies.enforce_permissions:
+            missing = [
+                name for name, status in statuses.items() if status != "granted"
+            ]
+            self._permission_error = (
+                "Permissions required: " + ", ".join(missing) if missing else None
+            )
         self.emit(
             {
                 "type": "permissions",
-                "permissions": self.dependencies.permission_snapshot_factory(),
+                "permissions": statuses,
             }
         )
+        if self._model_ready:
+            self._publish_operational_status()
 
     def _request_permission(self, pane: str) -> None:
         pane_map = {
@@ -381,6 +413,7 @@ class AsideStdioHelper:
             self.emit({"type": "error", "message": f"unknown permission: {pane}"})
             return
         request_privacy_access(pane_map[pane])
+        self._hotkeys.refresh_permissions()
         self.emit_permissions()
 
     def _reload_config(self) -> None:
@@ -597,8 +630,13 @@ class AsideStdioHelper:
                     self._toggle_active = self._start_recording()
 
     def _start_recording(self) -> bool:
-        if self._state != STATUS_READY:
+        if not self._model_ready:
+            self._set_status(STATUS_ERROR, "Local model is not ready yet.")
             return False
+        if self._permission_error:
+            self._publish_operational_status()
+            return False
+        self._audio_error = None
         if self._audio.start():
             self._set_status(STATUS_RECORDING)
             return True
@@ -617,7 +655,15 @@ class AsideStdioHelper:
         return True
 
     def _run_transcription(self) -> None:
-        audio = self._audio.stop()
+        try:
+            audio = self._audio.stop()
+        except Exception as exc:
+            logger.exception("Audio teardown failed")
+            self._set_status(
+                STATUS_ERROR,
+                f"Could not stop the microphone cleanly: {exc}",
+            )
+            return
         if audio is not None and len(audio) > 0:
             self._transcriber.transcribe(audio)
         else:
@@ -625,32 +671,80 @@ class AsideStdioHelper:
 
     def _on_engine_status(self, status: str) -> None:
         state, detail = normalize_engine_status(status)
-        self._set_status(state, detail)
+        if state == STATUS_READY:
+            self._model_ready = True
+            self._model_error = None
+            self._publish_operational_status()
+        elif state == STATUS_LOADING:
+            self._model_ready = False
+            self._model_error = None
+            self._set_status(STATUS_LOADING)
+        elif state == STATUS_ERROR:
+            self._model_ready = False
+            self._model_error = detail or "Local model failed to load."
+            self._publish_operational_status()
+        else:
+            self._set_status(state, detail)
 
     def _on_transcription(self, text: str) -> None:
         self.emit({"type": "transcription", "text": text})
 
     def _on_mic_denied(self) -> None:
+        self._permission_error = "Microphone permission is required."
         self.emit_permissions()
-        self._set_status(STATUS_ERROR, "microphone access denied")
+        self._publish_operational_status()
+
+    def _on_audio_error(self, message: str) -> None:
+        self._audio_error = message
+        self._publish_operational_status()
 
     def _on_accessibility_error(self) -> None:
+        self._permission_error = (
+            "Accessibility and Input Monitoring permissions are required."
+        )
         self.emit_permissions()
-        self._set_status(STATUS_ERROR, "could not create event tap")
+        self._publish_operational_status()
+
+    def _publish_operational_status(self) -> None:
+        if self._model_error:
+            self._set_status(STATUS_ERROR, self._model_error)
+        elif self._permission_error:
+            self._set_status(STATUS_ERROR, self._permission_error)
+        elif self._audio_error:
+            self._set_status(STATUS_ERROR, self._audio_error)
+        elif self._model_ready:
+            self._set_status(STATUS_READY)
+        else:
+            self._set_status(STATUS_LOADING)
 
     def _set_status(self, state: str, detail: str | None = None) -> None:
         self._state = state
-        payload = {"type": "status", "state": state}
+        permissions_ready = not self.dependencies.enforce_permissions or (
+            bool(self._permission_statuses)
+            and all(
+                value == "granted" for value in self._permission_statuses.values()
+            )
+        )
+        payload = {
+            "type": "status",
+            "state": state,
+            "modelReady": self._model_ready,
+            "permissionsReady": permissions_ready,
+            "captureState": (
+                state
+                if state in {STATUS_RECORDING, STATUS_TRANSCRIBING}
+                else "idle"
+            ),
+        }
         if detail:
             payload["message"] = detail
         self.emit(payload)
 
     def shutdown(self) -> None:
-        if self._state == STATUS_RECORDING:
-            try:
-                self._audio.stop()
-            except Exception:
-                logger.debug("Audio cleanup failed during shutdown", exc_info=True)
+        try:
+            self._audio.stop()
+        except Exception:
+            logger.debug("Audio cleanup failed during shutdown", exc_info=True)
         try:
             self._hotkeys.shutdown()
         except Exception:
@@ -660,7 +754,31 @@ class AsideStdioHelper:
 
 def main() -> int:
     logging.basicConfig(level=logging.INFO, stream=sys.stderr)
-    return AsideStdioHelper(dependencies=dependencies_from_environment()).start()
+    lock_path = None
+    if os.environ.get(PROTOCOL_SMOKE_ENV) == "1":
+        smoke_lock_path = os.environ.get("ASIDE_ENGINE_LOCK_PATH")
+        if smoke_lock_path:
+            lock_path = Path(smoke_lock_path)
+    lock_handle = acquire_engine_lock(lock_path)
+    if lock_handle is None:
+        for event in (
+            {"type": "hello", "protocolVersion": HELPER_PROTOCOL_VERSION},
+            {
+                "type": "error",
+                "code": "engine_already_running",
+                "message": "Another Aside engine already owns dictation and hotkeys.",
+                "protocolVersion": HELPER_PROTOCOL_VERSION,
+            },
+            {"type": "exit", "protocolVersion": HELPER_PROTOCOL_VERSION},
+        ):
+            sys.stdout.write(json.dumps(event, separators=(",", ":")) + "\n")
+        sys.stdout.flush()
+        return 73
+
+    try:
+        return AsideStdioHelper(dependencies=dependencies_from_environment()).start()
+    finally:
+        release_engine_lock(lock_handle)
 
 
 if __name__ == "__main__":

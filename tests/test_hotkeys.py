@@ -44,3 +44,35 @@ def test_hotkey_manager_degrades_when_event_tap_binding_missing(monkeypatch):
 
     assert manager._tap is None
     assert triggered == [True]
+
+
+def test_refresh_permissions_reenables_existing_event_tap(monkeypatch):
+    monkeypatch.setattr(hotkeys, "QUARTZ_AVAILABLE", False)
+    manager = HotkeyManager()
+    tap = object()
+    enabled = []
+    manager._tap = tap
+    monkeypatch.setattr(hotkeys, "QUARTZ_AVAILABLE", True)
+    monkeypatch.setattr(
+        hotkeys,
+        "CGEventTapEnable",
+        lambda candidate, value: enabled.append((candidate, value)),
+    )
+
+    assert manager.refresh_permissions() is True
+    assert enabled == [(tap, True)]
+
+
+def test_refresh_permissions_rebuilds_missing_event_tap(monkeypatch):
+    monkeypatch.setattr(hotkeys, "QUARTZ_AVAILABLE", False)
+    manager = HotkeyManager()
+    monkeypatch.setattr(hotkeys, "QUARTZ_AVAILABLE", True)
+    monkeypatch.setattr(hotkeys, "CGEventTapEnable", lambda *_: None)
+
+    def install(_on_error):
+        manager._tap = object()
+
+    monkeypatch.setattr(manager, "_install_event_tap", install)
+
+    assert manager.refresh_permissions() is True
+    assert manager._tap is not None

@@ -9,8 +9,9 @@ from aside.permissions import PermissionStatus
 
 
 class FakeAudio:
-    def __init__(self, on_mic_denied=None):
+    def __init__(self, on_mic_denied=None, on_error=None):
         self.on_mic_denied = on_mic_denied
+        self.on_error = on_error
         self.started = False
         self.stopped = False
 
@@ -65,6 +66,10 @@ class FakeHotkeys:
 
     def update_toggle_hotkey(self, config):
         self.toggle_hotkey = config
+
+    def refresh_permissions(self):
+        self.permissions_refreshed = True
+        return True
 
     def shutdown(self):
         self.shutdown_called = True
@@ -132,6 +137,72 @@ def test_helper_commands_drive_recording_transcription_and_shutdown():
         "protocolVersion": 1,
     } in events
     assert events[-1]["type"] == "exit"
+
+
+def test_model_ready_does_not_overwrite_permission_error():
+    stdout = io.StringIO()
+    app = _make_helper(stdout)
+    app.dependencies.enforce_permissions = True
+    app.dependencies.permission_snapshot_factory = lambda: {
+        "microphone": "denied",
+        "accessibility": "granted",
+        "inputMonitoring": "granted",
+    }
+
+    app.emit_permissions()
+    app._on_engine_status("ready")
+
+    assert app.state == "error"
+    status = [event for event in _events(stdout) if event["type"] == "status"][-1]
+    assert status["modelReady"] is True
+    assert status["permissionsReady"] is False
+    assert "microphone" in status["message"]
+
+
+def test_permission_refresh_recovers_ready_state():
+    stdout = io.StringIO()
+    app = _make_helper(stdout)
+    app.dependencies.enforce_permissions = True
+    snapshots = iter(
+        [
+            {
+                "microphone": "denied",
+                "accessibility": "granted",
+                "inputMonitoring": "granted",
+            },
+            {
+                "microphone": "granted",
+                "accessibility": "granted",
+                "inputMonitoring": "granted",
+            },
+        ]
+    )
+    app.dependencies.permission_snapshot_factory = lambda: next(snapshots)
+
+    app.emit_permissions()
+    app._on_engine_status("ready")
+    app.handle_command({"command": "getPermissions"})
+
+    assert app._hotkeys.permissions_refreshed is True
+    assert app.state == "ready"
+    status = [event for event in _events(stdout) if event["type"] == "status"][-1]
+    assert status["modelReady"] is True
+    assert status["permissionsReady"] is True
+
+
+def test_audio_stop_failure_is_actionable():
+    stdout = io.StringIO()
+    app = _make_helper(stdout)
+
+    def fail_stop():
+        raise RuntimeError("device disappeared")
+
+    app._audio.stop = fail_stop
+    app._run_transcription()
+
+    status = [event for event in _events(stdout) if event["type"] == "status"][-1]
+    assert status["state"] == "error"
+    assert "Could not stop the microphone cleanly" in status["message"]
 
 
 def test_helper_rejects_unknown_command():

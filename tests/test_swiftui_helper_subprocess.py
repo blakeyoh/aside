@@ -17,12 +17,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_helper_entrypoint_reports_permissions_and_shuts_down_cleanly():
+def test_helper_entrypoint_reports_permissions_and_shuts_down_cleanly(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
     env = os.environ.copy()
     env["PYTHONPATH"] = str(repo_root / "src")
     env["PYTHONUNBUFFERED"] = "1"
     env["ASIDE_HELPER_PROTOCOL_SMOKE"] = "1"
+    env["ASIDE_ENGINE_LOCK_PATH"] = str(tmp_path / "aside-smoke.lock")
 
     proc = subprocess.Popen(
         [sys.executable, "-u", "-m", "aside.helper"],
@@ -71,3 +72,50 @@ def test_helper_entrypoint_reports_permissions_and_shuts_down_cleanly():
     finally:
         if proc.poll() is None:
             proc.kill()
+
+
+def test_second_helper_cannot_own_the_same_engine_lock(tmp_path):
+    repo_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(repo_root / "src")
+    env["PYTHONUNBUFFERED"] = "1"
+    env["ASIDE_HELPER_PROTOCOL_SMOKE"] = "1"
+    env["ASIDE_ENGINE_LOCK_PATH"] = str(tmp_path / "shared-engine.lock")
+
+    first = subprocess.Popen(
+        [sys.executable, "-u", "-m", "aside.helper"],
+        cwd=repo_root,
+        env=env,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        while True:
+            event = json.loads(first.stdout.readline())
+            if event.get("type") == "status" and event.get("state") == "ready":
+                break
+
+        second = subprocess.run(
+            [sys.executable, "-u", "-m", "aside.helper"],
+            cwd=repo_root,
+            env=env,
+            input="",
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        second_events = [json.loads(line) for line in second.stdout.splitlines()]
+
+        assert second.returncode == 73
+        assert any(
+            event.get("code") == "engine_already_running"
+            for event in second_events
+        )
+    finally:
+        if first.poll() is None:
+            first.stdin.write(json.dumps({"command": "shutdown"}) + "\n")
+            first.stdin.flush()
+            first.communicate(timeout=5)
