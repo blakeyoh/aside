@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-enum HelperState: String {
+enum HelperState: String, Equatable {
     case loading
     case ready
     case recording
@@ -147,13 +147,17 @@ struct AsideShellApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     supervisor.shutdownHelper()
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    supervisor.refreshPermissions()
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .appTermination) {
                 Button("Quit Aside") {
-                    supervisor.shutdownHelper()
-                    NSApplication.shared.terminate(nil)
+                    supervisor.shutdownHelper {
+                        NSApplication.shared.terminate(nil)
+                    }
                 }
                 .keyboardShortcut("q")
             }

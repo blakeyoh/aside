@@ -89,6 +89,17 @@ final class HelperLifecycleTests: XCTestCase {
         XCTAssertEqual(lifecycle.phase, .stopped)
     }
 
+    func testExplicitShutdownCancelsAPendingRestart() {
+        var lifecycle = HelperLifecycle()
+        let generation = lifecycle.beginStart()
+        XCTAssertTrue(lifecycle.didLaunch(generation: generation))
+        XCTAssertTrue(lifecycle.requestStop(restart: true))
+
+        XCTAssertFalse(lifecycle.requestStop(restart: false))
+
+        XCTAssertEqual(lifecycle.didExit(generation: generation), false)
+    }
+
     func testShutdownEscalatesOnlyForCurrentGeneration() {
         var lifecycle = HelperLifecycle()
         let generation = lifecycle.beginStart()

@@ -74,7 +74,7 @@ struct HelperLifecycle {
     }
 
     mutating func requestStop(restart: Bool) -> Bool {
-        restartPending = restartPending || restart
+        restartPending = restart
         switch phase {
         case .stopped:
             return false
