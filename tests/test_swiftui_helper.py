@@ -205,6 +205,20 @@ def test_audio_stop_failure_is_actionable():
     assert "Could not stop the microphone cleanly" in status["message"]
 
 
+def test_sleep_cleanup_discards_capture_and_restores_operational_state():
+    stdout = io.StringIO()
+    app = _make_helper(stdout)
+    app._on_engine_status("ready")
+    app._set_status("recording")
+    app._toggle_active = True
+
+    app._release_audio_for_sleep()
+
+    assert app._audio.stopped is True
+    assert app._toggle_active is False
+    assert app.state == "ready"
+
+
 def test_helper_rejects_unknown_command():
     stdout = io.StringIO()
     app = _make_helper(stdout)

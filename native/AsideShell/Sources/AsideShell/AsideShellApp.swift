@@ -171,6 +171,12 @@ struct AsideShellApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     supervisor.refreshPermissions()
                 }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.willSleepNotification)) { _ in
+                    supervisor.prepareForSleep()
+                }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didWakeNotification)) { _ in
+                    supervisor.refreshPermissions()
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .commands {

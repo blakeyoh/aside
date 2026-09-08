@@ -344,6 +344,8 @@ class AsideStdioHelper:
             self._start_recording()
         elif name == "stopRecording":
             self._stop_recording()
+        elif name == "prepareForSleep":
+            self._prepare_for_sleep()
         elif name == "getPermissions":
             self._hotkeys.refresh_permissions()
             self.emit_permissions()
@@ -668,6 +670,24 @@ class AsideStdioHelper:
             self._transcriber.transcribe(audio)
         else:
             self._on_engine_status(STATUS_READY)
+
+    def _prepare_for_sleep(self) -> None:
+        """Discard active capture and release audio before system sleep."""
+        self._toggle_active = False
+        threading.Thread(
+            target=self._release_audio_for_sleep,
+            daemon=True,
+            name="audio-sleep-cleanup",
+        ).start()
+
+    def _release_audio_for_sleep(self) -> None:
+        self._toggle_active = False
+        try:
+            self._audio.stop()
+        except Exception as exc:
+            logger.exception("Audio cleanup failed before sleep")
+            self._audio_error = f"Could not release the microphone before sleep: {exc}"
+        self._publish_operational_status()
 
     def _on_engine_status(self, status: str) -> None:
         state, detail = normalize_engine_status(status)

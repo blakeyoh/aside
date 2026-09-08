@@ -26,6 +26,22 @@ def test_stop_closes_stream_even_when_stop_raises():
     assert capture.is_recording is False
 
 
+def test_stop_failure_reports_device_recovery_message():
+    stream = MagicMock()
+    stream.stop.side_effect = RuntimeError("device vanished")
+    errors = []
+    capture = audio.AudioCapture(on_error=errors.append)
+    capture._stream = stream
+    capture._recording = True
+
+    capture.stop()
+
+    assert errors == [
+        "The microphone stopped unexpectedly. Check the device connection, "
+        "then try again."
+    ]
+
+
 def test_failed_start_closes_partial_stream_and_reports_actionable_error(monkeypatch):
     stream = MagicMock()
     stream.start.side_effect = FakePortAudioError("no default device")

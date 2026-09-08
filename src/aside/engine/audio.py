@@ -119,13 +119,23 @@ class AudioCapture:
         if stream is not None:
             try:
                 stream.stop()
-            except Exception:
+            except Exception as exc:
                 logger.debug("Audio stream stop failed", exc_info=True)
+                if self._on_error:
+                    self._on_error(
+                        "The microphone stopped unexpectedly. Check the device "
+                        "connection, then try again."
+                    )
             finally:
                 try:
                     stream.close()
-                except Exception:
+                except Exception as exc:
                     logger.debug("Audio stream close failed", exc_info=True)
+                    if self._on_error:
+                        self._on_error(
+                            "Aside could not close the microphone cleanly. "
+                            "Restart the helper before recording again."
+                        )
 
         if not chunks:
             return None

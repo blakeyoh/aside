@@ -184,6 +184,13 @@ final class HelperSupervisor: ObservableObject {
         send(command: "getPermissions")
     }
 
+    func prepareForSleep() {
+        guard lifecycle.handshakeComplete else {
+            return
+        }
+        send(command: "prepareForSleep")
+    }
+
     private func beginStop(restart: Bool) {
         guard lifecycle.requestStop(restart: restart) else {
             return

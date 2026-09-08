@@ -45,18 +45,18 @@ never sufficient to call a native candidate release-ready.
 
 ## R3: helper lifecycle and permission recovery
 
-- [ ] Add an asynchronous graceful-shutdown deadline with escalation and
+- [x] Add an asynchronous graceful-shutdown deadline with escalation and
   serialize restarts until the prior helper's confirmed exit.
-- [ ] Reject stale stdout, stderr, timeout, and termination callbacks using a
+- [x] Reject stale stdout, stderr, timeout, and termination callbacks using a
   process generation; reset framing and transient state between helpers.
-- [ ] Add a bounded protocol handshake and incompatible-helper recovery.
-- [ ] Enforce shared single-engine ownership across native and legacy entry
+- [x] Add a bounded protocol handshake and incompatible-helper recovery.
+- [x] Enforce shared single-engine ownership across native and legacy entry
   points.
-- [ ] Track process, model, permissions, and capture state separately; refresh
+- [x] Track process, model, permissions, and capture state separately; refresh
   permissions after returning from System Settings.
-- [ ] Surface actionable audio/device failures and guarantee stream teardown
+- [x] Surface actionable audio/device failures and guarantee stream teardown
   even when `stop()` fails.
-- [ ] Add Swift supervisor tests for protocol framing, malformed events,
+- [x] Add Swift supervisor tests for protocol framing, malformed events,
   handshake timeout, exit/restart races, stale callbacks, and shutdown states.
 
 ## R4: trustworthy dictation and persistence
